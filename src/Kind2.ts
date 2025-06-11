@@ -403,22 +403,34 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
           component = files[i].components.find(c => c.name === nodeResult.name);
           ++i;
         }
+        component.analyses = [];
         for (const analysisResult of nodeResult.analyses) {
           let analysis: Analysis = new Analysis([], [], component);
-            analysis.realizability = analysisResult.realizabilityResult.toLowerCase();
-            if (analysisResult.context === "contract") {
-              analysis.realizabilitySource = "contract"
+          if (analysisResult.context === "contract") {
+            analysis.realizabilitySource = "contract"
+            //begin finding conflicting set
+            let conflictingSet: Property[] = [];
+            analysisResult.conflictingSet[0]?.elements?.forEach(element => {
+              let property = new Property(element.name, element.line - 1, component.uri, analysis)
+              conflictingSet.push(property);
+            });
+        
+            conflictingSet.forEach(property => property.state = "failed");
+            analysis.properties.push(...conflictingSet);
+            if (conflictingSet.length == 0) {
+              analysis.realizability = "realizable";
             }
-            else if (analysisResult.context === "environment") {
-              analysis.realizabilitySource = "inputs"
-            }
-            else if (analysisResult.context === "type") {
-              analysis.realizabilitySource = "type"
-            }
-            else {
-              analysis.realizabilitySource = "imported node"
-            }
-            component.analyses.push(analysis);
+          }
+          else if (analysisResult.context === "environment") {
+            analysis.realizabilitySource = "inputs"
+          }
+          else if (analysisResult.context === "type") {
+            analysis.realizabilitySource = "type"
+          }
+          else {
+            analysis.realizabilitySource = "imported node"
+          }
+          component.analyses.push(analysis);
         }
         if (component.analyses.length == 0) { 
           component.state = "passed";

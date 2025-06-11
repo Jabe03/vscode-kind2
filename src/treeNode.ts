@@ -94,10 +94,10 @@ export class Component {
         if (property.state === "unknown") { unknownProperties.add(property.name); }
         if (property.state === "errored") { erroredProperties.add(property.name); }
       }
-      // "Trivial" type declaration realizability checks give a question mark
-      if (analysis.realizability === "realizable" && !this.hasRefType) {
-        return ["unknown"]
-      }
+      // // "Trivial" type declaration realizability checks give a question mark
+      // if (analysis.realizability === "realizable" && !this.hasRefType) {
+      //   return ["unknown"]
+      // }
       if (analysis.realizability === "realizable" && analysis.realizabilitySource === "contract") { 
         ret.push("contract realizable"); 
       }
