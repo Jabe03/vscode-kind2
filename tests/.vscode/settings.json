@@ -1,0 +1,26 @@
+{
+    "kind2.ivc": true,
+    "kind2.modular": false,
+    "kind2.contracts.compositional": false,
+    "kind2.ivc_categories": [
+        "contracts",
+        "node_calls",
+        "equations",
+        "assertions",
+        "annotations"
+    ],
+    "kind2.ivc_all": false,
+    "kind2.ivc_uc_timeout": {},
+    "kind2.minimize_program": "no",
+    "kind2.ivc_uc_to": 100,
+    "kind2.mcs": false,
+    "kind2.mcs_all": true,
+    "kind2.mcs_categories": [
+        "assertions",
+        "annotations",
+        "node_calls",
+        "contracts",
+        "equations"
+    ],
+    "kind2.ivc_must": false
+}

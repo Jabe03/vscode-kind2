@@ -220,6 +220,128 @@
           "order": 0,
           "description": "Abstract subnodes with a contract."
         },
+
+
+        "kind2.ivc": {
+          "scope": "machine-overridable",
+          "type": "boolean",
+          "default": false,
+          "order": 0,
+          "description": "Explain results of checks by highlighting principal components."
+        },
+        "kind2.ivc_must": {
+          "scope": "machine-overridable",
+          "type": "boolean",
+          "default": false,
+          "order": 0,
+          "description": "Explain results of checks by highlighting principal components."
+        },
+         "kind2.ivc_all": {
+          "scope": "machine-overridable",
+          "type": "boolean",
+          "default": false,
+          "order": 0,
+          "description": "Compute all the Minimal Inductive Validity Cores"
+        },
+        "kind2.ivc_uc_to": {
+          "scope": "machine-overridable",
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "order": 0,
+          "description": "Set a timeout in milliseconds for each unsat core check sent to the solver. If set to 0, no timeout is used."
+        },
+        "kind2.ivc_categories": {
+          "scope": "machine-overridable",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "anyOf": [
+              {
+                "const": "node_calls"
+              },
+              {
+                "const": "contracts"
+              },
+              {
+                "const": "equations"
+              },
+              {
+                "const": "assertions"
+              },
+              {
+                "const": "annotations"
+              }
+            ]
+          },
+          "default": ["node_calls","contracts","equations","assertions","annotations"],
+          "order": 0,
+          "description": "Minimize only a specific category of elements"
+        },
+
+        "kind2.minimize_program": {
+          "scope": "machine-overridable",
+          "type": "string",
+          "enum":[
+            "no",
+            "valid_lustre",
+            "concise"
+          ],
+          "default": "no",
+          "order": 0,
+          "description": "Minimize the source Lustre program according to the inductive validity core(s) computed"
+        },
+
+
+        "kind2.mcs": {
+          "scope": "machine-overridable",
+          "type": "boolean",
+          "default": false,
+          "order": 0,
+          "description": "Explain results of checks by highlighting principal components."
+        },
+         "kind2.mcs_all": {
+          "scope": "machine-overridable",
+          "type": "boolean",
+          "default": false,
+          "order": 0,
+          "description": "Compute all the Minimal Inductive Validity Cores"
+        },
+        
+        "kind2.mcs_categories": {
+          "scope": "machine-overridable",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "anyOf": [
+              {
+                "const": "node_calls"
+              },
+              {
+                "const": "contracts"
+              },
+              {
+                "const": "equations"
+              },
+              {
+                "const": "assertions"
+              },
+              {
+                "const": "annotations"
+              }
+            ]
+          },
+          "default": ["node_calls","contracts","equations","assertions","annotations"],
+          "order": 0,
+          "description": "Minimize only a specific category of elements"
+        },
+
+
+
+
+        
         "kind2.certif.certif": {
           "scope": "machine-overridable",
           "type": "boolean",
@@ -404,6 +526,10 @@
         {
           "id": "properties",
           "name": "Properties"
+        },
+        {
+          "id": "kind2settings",
+          "name": "Kind 2 Settings"
         }
       ]
     },
@@ -455,6 +581,16 @@
           "command": "kind2/showSource",
           "group": "inline@2",
           "when": "view == properties && viewItem != analysis"
+        },
+         {
+          "command": "kind2/enableIVC",
+          "group": "inline@3",
+          "when": "view == properties && viewItem == IVC2 && !config.kind2.ivc"
+        },
+        {
+          "command": "kind2/disableIVC",
+          "group": "inline@3",
+          "when": "view == properties && viewItem == IVC2 && config.kind2.ivc"
         }
       ]
     },
@@ -472,6 +608,11 @@
       {
         "command": "kind2/check",
         "title": "Check component",
+        "icon": "$(run)"
+      },
+      {
+        "command": "kind2/minimalCutSet",
+        "title": "Check minimal cut set",
         "icon": "$(run)"
       },
       {
@@ -514,6 +655,23 @@
         "icon": {
           "dark": "icons/disable-compositional-dark.svg",
           "light": "icons/disable-compositional-light.svg"
+        }
+      },
+      {
+        "command": "kind2/disableIVC",
+        "title": "Disable IVC Analysis",
+        "icon": {
+          "dark": "icons/passed.svg",
+          "light": "icons/passed.svg"
+        }
+      },
+      
+      {
+        "command": "kind2/enableIVC",
+        "title": "Enable IVC Analysis",
+        "icon": {
+          "dark": "icons/failed.svg",
+          "light": "icons/failed.svg"
         }
       }
     ]

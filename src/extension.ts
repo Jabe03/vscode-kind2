@@ -7,15 +7,16 @@
 import * as net from 'net';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { workspace } from 'vscode';
+import { Hover, languages, workspace } from 'vscode';
 import {
   LanguageClient,
   LanguageClientOptions, ServerOptions,
   StreamInfo
 } from 'vscode-languageclient';
 import { Kind2 } from './Kind2';
-import { Component, Property, TreeNode, Analysis } from './treeNode';
+import { Component, Property, TreeNode, Analysis, Container } from './treeNode';
 import { WebPanel } from './webviewPanel';
+import { Kind2SettingsProvider, SelectorNode, SettingNode, SettingTreeElement } from './Kind2SettingsProvider';
 
 let client: LanguageClient;
 let kind2: Kind2;
@@ -64,11 +65,41 @@ export async function activate(context: vscode.ExtensionContext) {
 
   vscode.window.onDidChangeActiveTextEditor(() => kind2.updateDecorations());
 
+  // let diagnosticCollection = vscode.languages.createDiagnosticCollection("kind2");
+  // context.subscriptions.push(diagnosticCollection);
+
+  // languages.registerHoverProvider([{ scheme: 'file', language: 'lustre' }], {
+  // provideHover(document, position, token) {
+  //   return new Hover('I am a hover!');
+  //   }
+  // });
+
+
   registerCommand('kind2/enableModular', () => {
     workspace.getConfiguration("kind2").update("modular", true);
   });
   registerCommand('kind2/disableModular', () => {
     workspace.getConfiguration("kind2").update("modular", false);
+  });
+  registerCommand('kind2/toggleIVC', () => {
+      vscode.window.showInformationMessage('toggling IVC');
+
+    workspace.getConfiguration("kind2").update("ivc", !workspace.getConfiguration("kind2").get("ivc") );
+    kind2._treeDataChanged.fire(undefined);
+    
+  });
+  registerCommand('kind2/enableIVC', () => {
+        vscode.window.showInformationMessage('enabling IVC');
+
+    workspace.getConfiguration("kind2").update("ivc", true);
+    kind2._treeDataChanged.fire(undefined);
+    
+  });
+  registerCommand('kind2/disableIVC', () => {
+        vscode.window.showInformationMessage('diabling IVC');
+
+    workspace.getConfiguration("kind2").update("ivc", false);
+    kind2._treeDataChanged.fire(undefined);
   });
   registerCommand('kind2/enableCompositional', () => {
     workspace.getConfiguration("kind2.contracts").update("compositional", true);
@@ -76,10 +107,45 @@ export async function activate(context: vscode.ExtensionContext) {
   registerCommand('kind2/disableCompositional', () => {
     workspace.getConfiguration("kind2.contracts").update("compositional", false);
   });
+  registerCommand('kind2/toggleCompositional', () => {
+      vscode.window.showInformationMessage('toggling compositional');
+    workspace.getConfiguration("kind2.contracts").update("compositional", !workspace.getConfiguration("kind2.contracts").get("compositional") );
+    kind2._treeDataChanged.fire(undefined);
+    
+  });
 
+  registerCommand('kind2/modifySetting', (treeNode: SettingNode | SelectorNode) => {
+     Kind2SettingsProvider.updateSetting(treeNode);
+  });
+
+   registerCommand('kind2/activateIVC', (element : Container) => {
+     element.activateIVC();
+    //  for(let ele of (element.parent as Container).children){
+    //     kind2._treeDataChanged.fire(ele);
+    //  }
+    kind2._treeDataChanged.fire(element.parent);
+    
+     kind2.updateDecorations();
+  });
+  registerCommand('kind2/activateMCS', (element : Container) => {
+     element.activateMCS();
+    //  for(let ele of (element.parent as Container).children){
+    //     kind2._treeDataChanged.fire(ele);
+    //  }
+    kind2._treeDataChanged.fire(element.parent);
+    
+     kind2.updateDecorations();
+  });
+
+  
   registerCommand('kind2/check', async (node: Component, options) => {
     kind2.reveal(node, treeView);
     await kind2.check(node);
+  });
+
+  registerCommand('kind2/minimalCutSet', async (node: Component, options) => {
+    kind2.reveal(node, treeView);
+    await kind2.minimalCutSet(node);
   });
 
   registerCommand('kind2/realizability', async (node: Component, options) => {
@@ -108,10 +174,14 @@ export async function activate(context: vscode.ExtensionContext) {
   registerCommand('kind2/showSource', async (node: TreeNode) => await kind2.showSource(node));
 
   const treeView = vscode.window.createTreeView("properties", { treeDataProvider: kind2, canSelectMany: false, showCollapseAll: true });
-
+  
+  let settingsViewProvider: Kind2SettingsProvider = new Kind2SettingsProvider(context);
+  const settingsView = vscode.window.createTreeView("kind2settings", { treeDataProvider: settingsViewProvider, canSelectMany: false, showCollapseAll: true });
+  
   registerCommand('kind2/reveal', async (node: TreeNode) => await kind2.reveal(node, treeView));
 
   context.subscriptions.push(treeView);
+  context.subscriptions.push(settingsView);
   const documentSelector: vscode.DocumentFilter = { language: "lustre" };
   context.subscriptions.push(vscode.languages.registerCodeLensProvider(documentSelector, kind2));
 

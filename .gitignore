@@ -3,3 +3,8 @@
 /kind2-language-server
 /linux
 /macos
+tests/abs.lus
+EXE-kind2-language-server/kind2-language-server.jar
+kind2
+package-lock-OLD.json
+z3
