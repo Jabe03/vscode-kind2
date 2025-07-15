@@ -71,11 +71,11 @@ Z3_ZIP_NAME=z3-$Z3_VERSION-$Z3_OS_VERSION
 KIND2_TAR_NAME=kind2-v$KIND2_VERSION-$KIND2_OS_VERSION
 
 # Remove old configurations
-rm -rf z3 kind2 kind2-language-server
-rm -f $Z3_ZIP_NAME.zip
-rm -rf $Z3_ZIP_NAME z3-z3-$Z3_VERSION
-rm -f $KIND2_TAR_NAME.tar.gz
-rm -f kind2-language-server.zip
+#rm -rf z3 kind2 kind2-language-server
+#rm -f $Z3_ZIP_NAME.zip
+#rm -rf $Z3_ZIP_NAME z3-z3-$Z3_VERSION
+#rm -f $KIND2_TAR_NAME.tar.gz
+#rm -f kind2-language-server.zip
 
 # Install Z3
 case "$2" in

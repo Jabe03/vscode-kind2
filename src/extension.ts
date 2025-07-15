@@ -192,6 +192,7 @@ export async function activate(context: vscode.ExtensionContext) {
     client.onNotification("kind2/updateComponents", (uri: string) => kind2.updateComponents(uri));
     client.onRequest("kind2/getDefaultKind2Path", () => kind2.getDefaultKind2Path());
     client.onRequest("kind2/getDefaultZ3Path", () => kind2.getDefaultZ3Path());
+    console.log("Connected to LSP!");
   });
 }
 

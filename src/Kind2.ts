@@ -62,6 +62,7 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
   onDidChangeCodeLenses?: Event<void> | undefined;
 
   provideCodeLenses(document: TextDocument, _token: CancellationToken): ProviderResult<CodeLens[]> {
+    console.log("Creating code lenses");
     let codeLenses: CodeLens[] = [];
     let file = this._files.find(file => file.uri === document.uri.toString());
     if (file) {

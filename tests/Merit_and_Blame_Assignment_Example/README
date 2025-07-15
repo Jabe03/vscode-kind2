@@ -1,0 +1,17 @@
+
+- Computation of a small IVC (an approximate MIVC) over assumptions and guarantees:
+
+time kind2 --ivc true --ivc_category contracts <file.lus>
+
+- Computation of a single MIVC over assumptions and guarantees (and MUST set):
+
+time kind2 --ivc true --ivc_category contracts --ivc_approximate false --ivc_must_set true <file.lus>
+
+- Computation of all MIVCs over assumptions and guarantees (and MUST set):
+
+time kind2 --ivc true --ivc_category contracts --ivc_all true --ivc_must_set true <file.lus>
+
+- Computattion of all MCSs over assumptions and guarantees:
+
+time kind2 --enable MCS --mcs_category contracts --mcs_all true <file.lus>
+
