@@ -345,10 +345,10 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
 
   public async updateComponents(uri: string): Promise<void> {
     // First, cancel all running checks.
-    for (const check of this._runningChecks.values()) {
-      check.cancel();
-    }
-    this._runningChecks = new Map<Component, CancellationTokenSource>();
+    // for (const check of this._runningChecks.values()) {
+    //   check.cancel();
+    // }
+    // this._runningChecks = new Map<Component, CancellationTokenSource>();
     // Then, remove all components of files depending on this one.
     // for (const file of this._files) {
     //   if (this._fileMap.has(file.uri) && this._fileMap.get(file.uri).has(uri)) {
@@ -497,24 +497,52 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
   }
 
   public async check(mainComponent: Component): Promise<void> {
+    
     mainComponent.analyses = [];
     mainComponent.state = ["running"];
-    let files: File[] = [];
-    for (const uri of this._fileMap.get(mainComponent.uri)) {
-      let file = this._files.find(f => f.uri === uri);
-      files.push(file);
-    }
+    this._treeDataChanged.fire(mainComponent);
+    this._codeLensesChanged.fire();
+    this.updateDecorations();
+    let tokenSource = new CancellationTokenSource();
+    mainComponent.hasRunningAnalysis = true;
+    this._runningChecks.set(mainComponent, tokenSource);
+    await this._client.sendRequest("kind2/check", [mainComponent.uri, mainComponent.name, mainComponent.kind], tokenSource.token).catch(reason => {
+      if (reason.message.includes("cancelled")) {
+        this._runningChecks.delete(mainComponent);
+        mainComponent.analyses = [];
+        mainComponent.state = ["stopped"];
+        console.log("Check has been cancelled for " + mainComponent + "(state:" + mainComponent.state + ")")
+
+      } else {
+        window.showErrorMessage(reason.message);
+        mainComponent.analyses = [];
+        mainComponent.state = ["errored"];
+      }
+    }).finally(() =>{
+      
+        mainComponent.hasRunningAnalysis = false;
+        this.updateDecorations();
+        this._codeLensesChanged.fire();
+
+    });
+    
+  }
+  public async handleCheck(uri, name, values) {
+    let mainComponent = this._files.find(f => f.uri === uri).findComponent(name);
+    if(!this._runningChecks.has(mainComponent)) return;
+    console.log("Main component is:" + mainComponent);
+    let results: any[] = values.map(s => JSON.parse(s));
+    console.log("Got new check results: " /*+ JSON.stringify(results).substring()*/);
     let modifiedComponents: Component[] = [];
     modifiedComponents.push(mainComponent);
     for (const component of modifiedComponents) {
       this._treeDataChanged.fire(component);
     }
-    this._codeLensesChanged.fire();
-    this.updateDecorations();
-    let tokenSource = new CancellationTokenSource();
-    this._runningChecks.set(mainComponent, tokenSource);
-    await this._client.sendRequest("kind2/check", [mainComponent.uri, mainComponent.name, mainComponent.kind], tokenSource.token).then((values: string[]) => {
-      let results: any[] = values.map(s => JSON.parse(s));
+    let files: File[] = [];
+    for (const uri of this._fileMap.get(mainComponent.uri)) {
+      let file = this._files.find(f => f.uri === uri);
+      files.push(file);
+    }
       for (const nodeResult of results) {
         let component = undefined;
         let i = 0;
@@ -555,6 +583,7 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
           //now handle IVC if present
           if (analysisResult.ivcAnalysis) {
             for(let ivc of analysisResult.ivcAnalysis){
+              console.log("Got IVC properties: " + JSON.stringify(ivc));
               let ivcProperties: Property[]  = [];
               for (const ivcNode of ivc.nodes) {
                 for(const ivcElement of ivcNode.elements) {
@@ -588,28 +617,32 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
         }
         modifiedComponents.push(component);
       }
-      if (results.length == 0) {
-        mainComponent.state = ["passed"];
+     
+      for (const component of modifiedComponents) {
+        this._treeDataChanged.fire(component);
       }
-    }).catch(reason => {
-      if (reason.message.includes("cancelled")) {
-        mainComponent.state = ["stopped"];
-      } else {
-        window.showErrorMessage(reason.message);
-        mainComponent.state = ["errored"];
-      }
-    });
-    if (mainComponent.state.length > 0 && mainComponent.state[0] === "running") {
-      mainComponent.state = ["passed"];
-    }
-    for (const component of modifiedComponents) {
-      this._treeDataChanged.fire(component);
-    }
-    this._codeLensesChanged.fire();
-    this.updateDecorations();
-    this._runningChecks.delete(mainComponent);
+      this._codeLensesChanged.fire();
+      this.updateDecorations();
   }
 
+  public async checkComplete(uri, name){
+
+   
+    //   if (mainComponent.state.length > 0 && mainComponent.state[0] === "running") {
+    //     mainComponent.state = ["passed"];
+    //   }
+        console.log("Check complete called");
+        let mainComponent = this._files.find(f => f.uri === uri).findComponent(name);
+        mainComponent.hasRunningAnalysis = false;
+        this._runningChecks.delete(mainComponent);
+        if (mainComponent.analyses.length == 0) {
+          mainComponent.state = ["passed"];
+        }
+        this._codeLensesChanged.fire();
+        this.updateDecorations();
+
+
+  }
   public async realizability(mainComponent: Component): Promise<void> {
     mainComponent.analyses = [];
     mainComponent.state = ["running"];
