@@ -6,6 +6,7 @@
 
 import { ThemeColor, ThemeIcon } from "vscode";
 import * as vscode from 'vscode';
+import { timeStamp } from "console";
 
 export type TreeNode = File | Component | Analysis | Property | Container;
 
@@ -18,6 +19,9 @@ export class File implements File {
     this.components = [];
     this.line = 1;
     this.parent = undefined;
+  }
+  public findComponent(name : String){
+    return this.components.find(c => c.name === name);
   }
 }
 
@@ -76,6 +80,9 @@ export class Component {
   private _imported: boolean;
   private _hasRefType: boolean;
   private _kind: component_kind;
+  private _hasRunningAnalysis: boolean;
+  get hasRunningAnalysis () { return this._hasRunningAnalysis  }
+  set hasRunningAnalysis (value : boolean) { this._hasRunningAnalysis = value;}
   set analyses(analyses: Analysis[]) { this._analyses = analyses; }
   get analyses(): Analysis[] { return this._analyses; }
   set imported(imported: boolean) { this._imported = imported; }
@@ -166,9 +173,14 @@ export class Component {
     return properties;
   }
   get state(): State[] {
+    console.log("Getting state of " + this + "hasRunningAnalysis=" + this._hasRunningAnalysis);
+     if (this._hasRunningAnalysis) {
+      return ["running"];
+    }
     if (this._analyses.length == 0) {
       return this._state;
     }
+   
     let passedProperties = new Set<string>();
     let failedProperties = new Set<string>();
     let unknownProperties = new Set<string>();
@@ -285,7 +297,7 @@ export class Analysis {
     return this._activeIvc;
   }
   get hasIVC(){
-    return this._ivcs.length != 0
+    return this._ivcs.length != 0 || this.must != undefined;
   }
   get ivcs() {return this._ivcs}
 
@@ -382,6 +394,8 @@ export function statePath(state: State) {
       return "icons/stopped.svg";
     case "errored":
       return "icons/errored.svg";
+    case "mcs property":
+      return "icons/arrow-right-red.svg";
     case "mcs cut":
       return "icons/arrow-right-yellow.svg";
     case "ivc":
