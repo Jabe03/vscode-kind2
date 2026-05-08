@@ -466,12 +466,20 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
     let modifiedComponents: Component[] = [];
     modifiedComponents.push(mainComponent);
 
+    let previousAnalyses = new Map<string, Analysis>();
+    for (const analysis of mainComponent.analyses) {
+      previousAnalyses.set(JSON.stringify({ abstract: analysis.abstract, concrete: analysis.concrete }), analysis);
+    }
+
     let results: any[] = values.map(s => JSON.parse(s));
     let result: any = results[0];
       let component = mainComponent;
       component.analyses = [];
       
         let analysis: Analysis = new Analysis(["abstract"], ["concrete"], component);
+        let previousAnalysis = previousAnalyses.get(JSON.stringify({ abstract: analysis.abstract, concrete: analysis.concrete }));
+        let previousActiveMcs = previousAnalysis?.activeMCS;
+        let previousActiveIvc = previousAnalysis?.activeIVC;
         
         //now handle IVC if present
         if (result.mcsAnalysis) {
@@ -492,6 +500,17 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
           }
         } else {
           console.log("Error: MCS analysis not found in response");
+        }
+
+        if (previousActiveMcs !== undefined && previousActiveMcs >= 0 && previousActiveMcs < analysis.mcss.length) {
+          analysis.setActiveMCS(previousActiveMcs);
+        }
+        if (previousActiveIvc !== undefined) {
+          if (previousActiveIvc === -1 && analysis.must !== undefined) {
+            analysis.setActiveIVC(previousActiveIvc);
+          } else if (previousActiveIvc >= 0 && previousActiveIvc < analysis.ivcs.length) {
+            analysis.setActiveIVC(previousActiveIvc);
+          }
         }
         
         component.analyses.push(analysis);
@@ -520,6 +539,10 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
     console.log("Got new check results: " /*+ JSON.stringify(results).substring()*/);
     let modifiedComponents: Component[] = [];
     modifiedComponents.push(mainComponent);
+    let previousAnalyses = new Map<string, Analysis>();
+    for (const analysis of mainComponent.analyses) {
+      previousAnalyses.set(JSON.stringify({ abstract: analysis.abstract, concrete: analysis.concrete }), analysis);
+    }
     let files: File[] = [];
     for (const uri of this._fileMap.get(mainComponent.uri)) {
       let file = this._files.find(f => f.uri === uri);
@@ -537,6 +560,9 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
         component.analyses = [];
         for (const analysisResult of nodeResult.analyses) {
           let analysis: Analysis = new Analysis(analysisResult.abstract, analysisResult.concrete, component);
+          let previousAnalysis = previousAnalyses.get(JSON.stringify({ abstract: analysisResult.abstract, concrete: analysisResult.concrete }));
+          let previousActiveIvc = previousAnalysis?.activeIVC;
+          let previousActiveMcs = previousAnalysis?.activeMCS;
           for (const propertyResult of analysisResult.properties) {
             // Filter out candidate properties
             if (propertyResult.isCandidate === "true") {
@@ -577,8 +603,6 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
               analysis.addIVC(ivcProperties)
             }
           }
-          
-          component.analyses.push(analysis);
 
           if (analysisResult.ivcMust) {
               let ivcMust = analysisResult.ivcMust;
@@ -592,6 +616,19 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
               }
               analysis.must = mustProperties;
           }
+
+          if (previousActiveIvc !== undefined) {
+            if (previousActiveIvc === -1 && analysis.must !== undefined) {
+              analysis.setActiveIVC(previousActiveIvc);
+            } else if (previousActiveIvc >= 0 && previousActiveIvc < analysis.ivcs.length) {
+              analysis.setActiveIVC(previousActiveIvc);
+            }
+          }
+          if (previousActiveMcs !== undefined && previousActiveMcs >= 0 && previousActiveMcs < analysis.mcss.length) {
+            analysis.setActiveMCS(previousActiveMcs);
+          }
+
+          component.analyses.push(analysis);
         }
         
         if (component.analyses.length == 0) {
