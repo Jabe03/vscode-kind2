@@ -173,7 +173,6 @@ export class Component {
     return properties;
   }
   get state(): State[] {
-    console.log("Getting state of " + this + "hasRunningAnalysis=" + this._hasRunningAnalysis);
      if (this._hasRunningAnalysis) {
       return ["running"];
     }

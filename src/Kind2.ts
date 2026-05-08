@@ -10,6 +10,8 @@ import { LanguageClient } from "vscode-languageclient";
 import { Analysis, Component, File, Property, State, statePath, TreeNode, stateColor, Container } from "./treeNode";
 import { WebPanel } from "./webviewPanel";
 
+type AnalysisType = "check" | "minimalCutSet" | "realizability"; 
+
 export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
   private _fileMap: Map<String, Set<String>>;
   private _files: File[];
@@ -421,112 +423,95 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
     await window.showTextDocument(Uri.parse(node.uri, true), { selection: range });
   }
 
-  public async minimalCutSet(mainComponent: Component): Promise<void> {
-    mainComponent.analyses = [];
+  
+  public async startAnalysis(mainComponent: Component, analysisType: AnalysisType): Promise<void> {
+     mainComponent.analyses = [];
     mainComponent.state = ["running"];
-    let files: File[] = [];
-    for (const uri of this._fileMap.get(mainComponent.uri)) {
-      let file = this._files.find(f => f.uri === uri);
-      files.push(file);
-    }
-    let modifiedComponents: Component[] = [];
-    modifiedComponents.push(mainComponent);
-    for (const component of modifiedComponents) {
-      this._treeDataChanged.fire(component);
-    }
-    this._codeLensesChanged.fire();
-    this.updateDecorations();
-    let tokenSource = new CancellationTokenSource();
-    this._runningChecks.set(mainComponent, tokenSource);
-    await this._client.sendRequest("kind2/minimalCutSet", [mainComponent.uri, mainComponent.name, mainComponent.kind], tokenSource.token).then((values: string[]) => {
-      let results: any[] = values.map(s => JSON.parse(s));
-      let result: any = results[0];
-        let component = mainComponent;
-        component.analyses = [];
-        
-          let analysis: Analysis = new Analysis(["abstract"], ["concrete"], component);
-          
-          //now handle IVC if present
-          if (result.mcsAnalysis) {
-            analysis.hasMCS = true;
-            for(let mcs of result.mcsAnalysis){
-              let mcsProperties: Property[]  = [];
-              let cutProperty = new Property(mcs.property, mcs.line - 1, component.uri, analysis, mcs.column - 1);
-              cutProperty.state = "mcs property";
-              mcsProperties.push(cutProperty);
-              for (const mcsNode of mcs.nodes) {
-                for(const mcsElement of mcsNode.elements) {
-                  let mcsProperty = new Property(mcsElement.name, mcsElement.line - 1, component.uri, analysis, mcsElement.column - 1);
-                  mcsProperty.state = "mcs cut";
-                  mcsProperties.push(mcsProperty);
-                }
-              }
-              analysis.addMCS(mcsProperties);
-            }
-          } else {
-            console.log("Error: MCS analysis not found in response");
-          }
-          
-          component.analyses.push(analysis);
-        
-        if (component.analyses.length == 0) {
-          component.state = ["passed"];
-        }
-        modifiedComponents.push(component);
-      
-      if (results.length == 0) {
-        mainComponent.state = ["unknown"];
-      }
-    }).catch(reason => {
-      if (reason.message.includes("cancelled")) {
-        mainComponent.state = ["stopped"];
-      } else {
-        window.showErrorMessage(reason.message);
-        mainComponent.state = ["errored"];
-      }
-    });
-    if (mainComponent.state.length > 0 && mainComponent.state[0] === "running") {
-      mainComponent.state = ["passed"];
-    }
-    for (const component of modifiedComponents) {
-      this._treeDataChanged.fire(component);
-    }
-    this._codeLensesChanged.fire();
-    this.updateDecorations();
-    this._runningChecks.delete(mainComponent);
-  }
-
-  public async check(mainComponent: Component): Promise<void> {
-    
-    mainComponent.analyses = [];
-    mainComponent.state = ["running"];
-    this._treeDataChanged.fire(mainComponent);
-    this._codeLensesChanged.fire();
-    this.updateDecorations();
+    this.updateAllComponents([mainComponent]);
     let tokenSource = new CancellationTokenSource();
     mainComponent.hasRunningAnalysis = true;
     this._runningChecks.set(mainComponent, tokenSource);
-    await this._client.sendRequest("kind2/check", [mainComponent.uri, mainComponent.name, mainComponent.kind], tokenSource.token).catch(reason => {
+    await this._client.sendRequest(`kind2/${analysisType}`, [mainComponent.uri, mainComponent.name, mainComponent.kind], tokenSource.token).catch(reason => {
       if (reason.message.includes("cancelled")) {
         this._runningChecks.delete(mainComponent);
         mainComponent.analyses = [];
         mainComponent.state = ["stopped"];
         console.log("Check has been cancelled for " + mainComponent + "(state:" + mainComponent.state + ")")
-
       } else {
         window.showErrorMessage(reason.message);
         mainComponent.analyses = [];
         mainComponent.state = ["errored"];
       }
     }).finally(() =>{
-      
         mainComponent.hasRunningAnalysis = false;
-        this.updateDecorations();
-        this._codeLensesChanged.fire();
-
+        this.updateAllComponents([]);
     });
-    
   }
+ 
+
+  public async minimalCutSet(mainComponent: Component): Promise<void> {
+    this.startAnalysis(mainComponent, "minimalCutSet");
+  }
+
+   public async check(mainComponent: Component): Promise<void> {
+    this.startAnalysis(mainComponent, "check");
+  }
+
+  public async realizability(mainComponent: Component): Promise<void> {
+    this.startAnalysis(mainComponent, "realizability");
+  }
+  public handleMinimalCutSet(uri, name, values){
+    let mainComponent = this._files.find(f => f.uri === uri).findComponent(name);
+    if(!this._runningChecks.has(mainComponent)) return;
+    let modifiedComponents: Component[] = [];
+    modifiedComponents.push(mainComponent);
+
+    let results: any[] = values.map(s => JSON.parse(s));
+    let result: any = results[0];
+      let component = mainComponent;
+      component.analyses = [];
+      
+        let analysis: Analysis = new Analysis(["abstract"], ["concrete"], component);
+        
+        //now handle IVC if present
+        if (result.mcsAnalysis) {
+          analysis.hasMCS = true;
+          for(let mcs of result.mcsAnalysis){
+            let mcsProperties: Property[]  = [];
+            let cutProperty = new Property(mcs.property, mcs.line - 1, component.uri, analysis, mcs.column - 1);
+            cutProperty.state = "mcs property";
+            mcsProperties.push(cutProperty);
+            for (const mcsNode of mcs.nodes) {
+              for(const mcsElement of mcsNode.elements) {
+                let mcsProperty = new Property(mcsElement.name, mcsElement.line - 1, component.uri, analysis, mcsElement.column - 1);
+                mcsProperty.state = "mcs cut";
+                mcsProperties.push(mcsProperty);
+              }
+            }
+            analysis.addMCS(mcsProperties);
+          }
+        } else {
+          console.log("Error: MCS analysis not found in response");
+        }
+        
+        component.analyses.push(analysis);
+      
+      if (component.analyses.length == 0) {
+        component.state = ["passed"];
+      }
+      modifiedComponents.push(component);
+    
+    if (results.length == 0) {
+      mainComponent.state = ["unknown"];
+    }
+    this.updateAllComponents(modifiedComponents);
+  }
+
+  public minimalCutSetComplete(uri, name){
+
+  }
+
+
   public async handleCheck(uri, name, values) {
     let mainComponent = this._files.find(f => f.uri === uri).findComponent(name);
     if(!this._runningChecks.has(mainComponent)) return;
@@ -535,9 +520,6 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
     console.log("Got new check results: " /*+ JSON.stringify(results).substring()*/);
     let modifiedComponents: Component[] = [];
     modifiedComponents.push(mainComponent);
-    for (const component of modifiedComponents) {
-      this._treeDataChanged.fire(component);
-    }
     let files: File[] = [];
     for (const uri of this._fileMap.get(mainComponent.uri)) {
       let file = this._files.find(f => f.uri === uri);
@@ -618,16 +600,10 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
         modifiedComponents.push(component);
       }
      
-      for (const component of modifiedComponents) {
-        this._treeDataChanged.fire(component);
-      }
-      this._codeLensesChanged.fire();
-      this.updateDecorations();
+      this.updateAllComponents(modifiedComponents);
   }
 
   public async checkComplete(uri, name){
-
-   
     //   if (mainComponent.state.length > 0 && mainComponent.state[0] === "running") {
     //     mainComponent.state = ["passed"];
     //   }
@@ -638,35 +614,49 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
         if (mainComponent.analyses.length == 0) {
           mainComponent.state = ["passed"];
         }
-        this._codeLensesChanged.fire();
-        this.updateDecorations();
+        this.updateAllComponents([mainComponent]);
 
 
   }
-  public async realizability(mainComponent: Component): Promise<void> {
+
+  public async realizabilityOLD(mainComponent: Component): Promise<void> {
     mainComponent.analyses = [];
     mainComponent.state = ["running"];
-    let files: File[] = [];
-    for (const uri of this._fileMap.get(mainComponent.uri)) {
-      let file = this._files.find(f => f.uri === uri);
-      files.push(file);
-    }
     let modifiedComponents: Component[] = [];
     modifiedComponents.push(mainComponent);
-    for (const component of modifiedComponents) {
-      this._treeDataChanged.fire(component);
-    }
-    this._codeLensesChanged.fire();
-    this.updateDecorations();
+    this.updateAllComponents(modifiedComponents);
     let tokenSource = new CancellationTokenSource();
     this._runningChecks.set(mainComponent, tokenSource);
     await this._client.sendRequest("kind2/realizability", [mainComponent.uri, mainComponent.name, mainComponent.kind], tokenSource.token).then((values: string[]) => {
-      let results: any[] = values.map(s => JSON.parse(s));
+      this.handleRealizability(mainComponent.uri, mainComponent.name, values);
+    }).catch(reason => {
+      if (reason.message.includes("cancelled")) {
+        mainComponent.state = ["stopped"];
+      } else {
+        window.showErrorMessage(reason.message);
+        mainComponent.state = ["errored"];
+      }
+    });
+    if (mainComponent.state.length > 0 && mainComponent.state[0] === "running") {
+      mainComponent.state = ["passed"];
+    }
+    this.updateAllComponents(modifiedComponents);
+    this._runningChecks.delete(mainComponent);
+  }
+
+
+  public handleRealizability(uri, name, values){
+    let mainComponent = this._files.find(f => f.uri === uri).findComponent(name);
+    if(!this._runningChecks.has(mainComponent)) return;
+    let modifiedComponents: Component[] = [];
+    modifiedComponents.push(mainComponent);
+
+    let results: any[] = values.map(s => JSON.parse(s));
       for (const nodeResult of results) {
         let component = undefined;
         let i = 0;
         while (component === undefined) {
-          component = files[i].components.find(c => c.name === nodeResult.name);
+          component = this._files[i].components.find(c => c.name === nodeResult.name);
           ++i;
         }
         for (const analysisResult of nodeResult.analyses) {
@@ -710,27 +700,27 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
       if (results.length == 0) {
         mainComponent.state = ["passed"];
       }
-    }).catch(reason => {
-      if (reason.message.includes("cancelled")) {
-        mainComponent.state = ["stopped"];
-      } else {
-        window.showErrorMessage(reason.message);
-        mainComponent.state = ["errored"];
-      }
-    });
-    if (mainComponent.state.length > 0 && mainComponent.state[0] === "running") {
+      this.updateAllComponents(modifiedComponents);
+  }
+
+  public realizabilityComplete(uri, name){
+    let mainComponent = this._files.find(f => f.uri === uri).findComponent(name);
+      if (mainComponent.state.length > 0 && mainComponent.state[0] === "running") {
       mainComponent.state = ["passed"];
     }
+    this.updateAllComponents([]);
+  }
+
+  public cancel(component: Component) {
+    this._runningChecks.get(component).cancel();
+  }
+
+  private updateAllComponents(modifiedComponents){
     for (const component of modifiedComponents) {
       this._treeDataChanged.fire(component);
     }
     this._codeLensesChanged.fire();
     this.updateDecorations();
-    this._runningChecks.delete(mainComponent);
-  }
-
-  public cancel(component: Component) {
-    this._runningChecks.get(component).cancel();
   }
 
   public async interpret(uri: string, main: string, json: string): Promise<void> {

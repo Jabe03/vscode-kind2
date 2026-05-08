@@ -150,6 +150,13 @@ export async function activate(context: vscode.ExtensionContext) {
     client.onNotification("kind2/checkResultUpdate", (uri: string, name:string, values: string[]) => kind2.handleCheck(uri, name, values));
     client.onNotification("kind2/checkComplete", (uri: string, name:string, values: string[]) => kind2.checkComplete(uri, name));
 
+    client.onNotification("kind2/minimalCutSetResultUpdate", (uri: string, name:string, values: string[]) => kind2.handleMinimalCutSet(uri, name, values));
+    client.onNotification("kind2/minimalCutSetComplete", (uri: string, name:string, values: string[]) => kind2.minimalCutSetComplete(uri, name));
+    
+    client.onNotification("kind2/realizabilityResultUpdate", (uri: string, name:string, values: string[]) => kind2.handleRealizability(uri, name, values));
+    client.onNotification("kind2/realizabilityComplete", (uri: string, name:string, values: string[]) => kind2.realizabilityComplete(uri, name));
+
+    
     client.onNotification("kind2/updateComponents", (uri: string) => kind2.updateComponents(uri));
     client.onRequest("kind2/getDefaultKind2Path", () => kind2.getDefaultKind2Path());
     client.onRequest("kind2/getDefaultZ3Path", () => kind2.getDefaultZ3Path());
