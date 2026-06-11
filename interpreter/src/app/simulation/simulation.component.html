@@ -31,6 +31,13 @@
             <button class="button array-view" *ngSwitchCase="&quot;array&quot;" [disabled]="!showViewArrayButton(stream)" (click)="openArrayEditor(stream, value)">
               Array
             </button>
+            <button
+              class="button array-view"
+              *ngSwitchCase="'set'"
+              [disabled]="!showViewSetButton(stream)"
+              (click)="openSetEditor(stream, value)">
+              Set
+            </button>
             <input class="textbox" *ngSwitchDefault [disabled]="isDisabled(component, stream)" type="text"
               (change)="inputChanged(stream.type, value, $event)" [attr.value]="valueToString(value[1])">
             </td>
@@ -45,7 +52,12 @@
 <div class="array-overlay" *ngIf="showArrayEditor">
   <div class="array-editor-modal">
     <div class="array-editor-header">
-      <h3>Edit ({{currentStream?.name}}: {{currentStream?.typeInfo?.baseType}}^{{currentStream?.typeInfo?.sizes?.join("^")}})</h3>
+      <h3>
+        {{ currentStream?.name }} : 
+        <span class="array-type">
+          {{ currentStream?.typeInfo?.baseType }}^{{ currentStream?.typeInfo?.sizes?.join("^") }}
+        </span>
+      </h3>
       <button class="close-button" (click)="closeArrayEditor()">×</button>
     </div>
     <div class="array-editor-content">
@@ -86,6 +98,81 @@
         <button class="button"  *ngIf="currentStream?.class !== 'output'" (click)="saveArray()">Save</button>
         <button class="button"  *ngIf="currentStream?.class !== 'output'" (click)="closeArrayEditor()">Cancel</button>
         <button class="button"  *ngIf="currentStream?.class === 'output'" (click)="closeArrayEditor()">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<div class="set-overlay" *ngIf="showSetEditor">
+  <div class="set-editor-modal">
+    <div class="set-editor-header">
+      <h3>
+        {{ currentSetStream?.name }}
+        <span class="set-type">
+          set&lt;{{ currentSetStream?.typeInfo?.baseType }}&gt;
+        </span>
+      </h3>
+
+      <button class="close-button" (click)="closeSetEditor()">×</button>
+    </div>
+
+    <div class="set-editor-content">
+      <div class="set-toolbar" *ngIf="currentSetStream?.class !== 'output'">
+        <button class="button" (click)="addSetElement()">
+          + Add element
+        </button>
+      </div>
+
+      <div class="set-empty" *ngIf="unsavedSetValues.length === 0">
+        Set is empty.
+      </div>
+
+      <div class="set-values">
+        <div class="set-item" *ngFor="let element of unsavedSetValues; let i = index">
+          <input
+            class="set-input"
+            type="text"
+            [value]="element"
+            [disabled]="currentSetStream?.class === 'output'"
+            (change)="setElementChanged(i, $event)"
+          />
+
+          <button
+            class="set-remove-button"
+            *ngIf="currentSetStream?.class !== 'output'"
+            title="Remove element"
+            (click)="removeSetElement(i)"
+          >
+            x
+          </button>
+        </div>
+      </div>
+
+      <div class="set-editor-actions">
+        <button
+          class="button"
+          *ngIf="currentSetStream?.class !== 'output'"
+          (click)="saveSet()"
+        >
+          Save
+        </button>
+
+        <button
+          class="button"
+          *ngIf="currentSetStream?.class !== 'output'"
+          (click)="closeSetEditor()"
+        >
+          Cancel
+        </button>
+
+        <button
+          class="button"
+          *ngIf="currentSetStream?.class === 'output'"
+          (click)="closeSetEditor()"
+        >
+          Close
+        </button>
       </div>
     </div>
   </div>

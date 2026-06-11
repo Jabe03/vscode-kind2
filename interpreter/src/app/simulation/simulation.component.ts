@@ -34,7 +34,8 @@ export class SimulationComponent implements OnInit {
           json_data = JSON.parse(event.data.json)[0];
           console.log("Received data:", this._uri, this._main, json_data);
           } catch (e) {
-          vscode.postMessage({ command: "showErrorMessage", text: "Kind 2 Error" });
+          
+          vscode.postMessage({ command: "showErrorMessage", text: "Kind 2 Error", internalError: JSON.stringify(event.data.json) });
           
           return;
         }
@@ -192,6 +193,7 @@ export class SimulationComponent implements OnInit {
               case "enum":
               case "array":
               case "subrange":
+              case "set":
                 stream.instantValues.push([i, this.defaultValueFor(stream.type, stream.typeInfo)]);
                 break;
             }
@@ -224,6 +226,8 @@ export class SimulationComponent implements OnInit {
         return this.createNDimensionalArray(typeInfo.sizes, this.defaultValueFor(typeInfo.baseType, typeInfo.baseTypeInfo));
       case "subrange":
         return typeInfo.min ?? typeInfo.max;
+      case "set":
+        return [];
       default:
         console.error("Unknown type: " + type);
         return -1;
@@ -306,6 +310,7 @@ export class SimulationComponent implements OnInit {
       return value;
 
     }
+    console.log("Sending interpreter input:\n", value.toString())
     return value.toString();
   }
 
@@ -416,7 +421,70 @@ export class SimulationComponent implements OnInit {
     } 
     return true;
   }
+  public showViewSetButton(stream: Stream): boolean {
+    return true;
+  }
+
+
+
+
+  public showSetEditor: boolean = false;
+  public currentSetStreamInstant: StreamValue[] = [];
+  public currentSetValues: StreamValue[] = [];
+  public unsavedSetValues: string[] = [];
+  public currentSetStream: Stream | null = null;
+
+  public openSetEditor(stream: Stream, values: StreamValue[]): void {
+    this.currentSetStreamInstant = values;
+    this.currentSetStream = stream;
+    if(values[1] !== undefined){
+      this.currentSetValues = values[1] as StreamValue[];
+    } else {
+      this.currentSetValues = [];
+    }
+    this.unsavedSetValues = this.currentSetValues.map(v => v.toString());
+
+
+    this.showSetEditor = true;
+    console.log("Set editor opened for stream:", stream.name, "with values:", values);
+  }
+
+  public addSetElement(): void {
+    if(this.currentSetValues == null){
+      console.error("Current set stream is null");
+      return;
+    }
+    this.unsavedSetValues.push("");
+  }
+
+  public setElementChanged(i:number, event: Event): void {
+    if(this.unsavedSetValues == null){
+      console.error("Current set stream is null");
+      return;
+    }
+    this.unsavedSetValues[i] = this.getValueFromEvent(event);
+  } 
+  public removeSetElement(index: number): void {  
+    if(this.currentSetValues == null){
+      console.error("Current set stream is null");
+      return;
+    }
+    this.unsavedSetValues.splice(index, 1);
+  }
+  public closeSetEditor(): void {
+    this.showSetEditor = false;
+    this.unsavedSetValues = [];
+  }
+
+  public saveSet(): void {
+    this.currentSetValues = this.unsavedSetValues.map(value => this.getValueFromString(value, this.currentSetStream?.typeInfo.baseType));
+    this.currentSetStreamInstant[1] = this.currentSetValues;
+    this.closeSetEditor();
+  }
+
 }
+
+
 
 
 
