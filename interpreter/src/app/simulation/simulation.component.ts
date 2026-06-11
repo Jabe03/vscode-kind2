@@ -194,6 +194,7 @@ export class SimulationComponent implements OnInit {
               case "array":
               case "subrange":
               case "set":
+              case "map":
                 stream.instantValues.push([i, this.defaultValueFor(stream.type, stream.typeInfo)]);
                 break;
             }
@@ -227,6 +228,7 @@ export class SimulationComponent implements OnInit {
       case "subrange":
         return typeInfo.min ?? typeInfo.max;
       case "set":
+      case "map":
         return [];
       default:
         console.error("Unknown type: " + type);
@@ -258,7 +260,19 @@ export class SimulationComponent implements OnInit {
   public isCexMode(): boolean {
     return this._interp_mode == "cex";
   }
-
+  private detupleStreams(streams: Stream[]): Stream[] {
+    let new_streams: Stream[] = [];
+    for (let stream of streams) {
+      if (stream.type === "map") {
+        let new_stream = { ...stream, name: stream.name.split("_").slice(0, -1).join("_") };  
+        new_streams.push(new_stream);
+      }
+        else {
+          new_streams.push(stream);
+        }
+    }
+    return new_streams;
+  }
   public simulate(): void {
     if(this.hasND()){
       // this should not be reachable by the simulate button since the 
@@ -272,6 +286,7 @@ export class SimulationComponent implements OnInit {
     let json: any[] = new Array();
     let mainComponent: Interpretation = this._components[0];
     let inputStreams: Stream[] = mainComponent.streams.filter(stream => stream.class === "input");
+    inputStreams = this.detupleStreams(inputStreams);
     let time: number = this._components[0].streams[0].instantValues.length;
     for (let i = 0; i < time; ++i) {
       let object: any = {};
@@ -422,6 +437,16 @@ export class SimulationComponent implements OnInit {
     return true;
   }
   public showViewSetButton(stream: Stream): boolean {
+     if(stream.class === "output") {
+        return stream.instantValues.some(value => value.length > 1);
+    } 
+    return true;
+  }
+
+    public showViewMapButton(stream: Stream): boolean {
+     if(stream.class === "output") {
+        return stream.instantValues.some(value => value.length > 1);
+    } 
     return true;
   }
 
@@ -482,6 +507,118 @@ export class SimulationComponent implements OnInit {
     this.closeSetEditor();
   }
 
+
+
+
+
+
+  public getMapKeyType(stream: Stream): string {
+      return (
+        stream.typeInfo?.keyType 
+      );
+    }
+
+  public getMapValueType(stream: Stream): string {
+    return (
+      stream.typeInfo?.valueType
+    );
+  }
+
+
+
+  public showMapEditor: boolean = false;
+
+  public currentMapStreamInstant: StreamValue[] = [];
+  public currentMapStream: Stream | null = null;
+
+  public currentMapValues: StreamValue[][] = [];
+  public unsavedMapValues: string[][] = [];
+
+
+  public openMapEditor(stream: Stream, values: StreamValue[]): void {
+  this.currentMapStreamInstant = values;
+  this.currentMapStream = stream;
+
+  if (values[1] !== undefined) {
+    this.currentMapValues = values[1] as StreamValue[][];
+  } else {
+    this.currentMapValues = [];
+  }
+
+  this.unsavedMapValues = this.currentMapValues.map(entry => [
+    this.valueToString(entry[0])?.toString() ?? "",
+    this.valueToString(entry[1])?.toString() ?? ""
+  ]);
+
+  this.showMapEditor = true;
+
+  console.log("Map editor opened for stream:", stream.name, "with values:", values);
+}
+
+public addMapEntry(): void {
+  if (this.currentMapStream === null) {
+    console.error("Current map stream is null");
+    return;
+  }
+
+  this.unsavedMapValues.push(["", ""]);
+}
+
+public mapKeyChanged(index: number, event: Event): void {
+  if (this.currentMapStream === null) {
+    console.error("Current map stream is null");
+    return;
+  }
+
+  this.unsavedMapValues[index][0] = (event.target as HTMLInputElement).value;
+}
+
+public mapValueChanged(index: number, event: Event): void {
+  if (this.currentMapStream === null) {
+    console.error("Current map stream is null");
+    return;
+  }
+
+  this.unsavedMapValues[index][1] = (event.target as HTMLInputElement).value;
+}
+
+public removeMapEntry(index: number): void {
+  if (this.currentMapStream === null) {
+    console.error("Current map stream is null");
+    return;
+  }
+
+  this.unsavedMapValues.splice(index, 1);
+}
+
+public closeMapEditor(): void {
+  this.showMapEditor = false;
+  this.currentMapStream = null;
+  this.currentMapStreamInstant = [];
+  this.currentMapValues = [];
+  this.unsavedMapValues = [];
+}
+
+public saveMap(): void {
+  if (this.currentMapStream === null) {
+    console.error("Current map stream is null");
+    return;
+  }
+
+  const keyType = this.getMapKeyType(this.currentMapStream);
+  const valueType = this.getMapValueType(this.currentMapStream);
+
+  this.currentMapValues = this.unsavedMapValues.map(entry => {
+    const key = this.getValueFromString(entry[0], keyType);
+    const value = this.getValueFromString(entry[1], valueType);
+
+    return [key, value];
+  });
+
+  this.currentMapStreamInstant[1] = this.currentMapValues;
+
+  this.closeMapEditor();
+}
 }
 
 

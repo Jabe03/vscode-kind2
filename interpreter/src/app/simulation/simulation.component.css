@@ -482,3 +482,160 @@ body {
   gap: 8px;
   justify-content: flex-end;
 }
+
+.map-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.map-editor-modal {
+  background: var(--vscode-editor-background);
+  color: var(--vscode-editor-foreground);
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 6px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+
+  width: min(640px, 90vw);
+  max-height: 85vh;
+
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.map-editor-header {
+  background: var(--vscode-sideBar-background);
+  border-bottom: 1px solid var(--vscode-panel-border);
+  padding: 8px 12px;
+
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.map-editor-header h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--vscode-foreground);
+}
+
+.map-type {
+  margin-left: 6px;
+  color: var(--vscode-descriptionForeground);
+  font-weight: 400;
+}
+
+.map-editor-content {
+  padding: 12px;
+  overflow: auto;
+  flex: 1;
+}
+
+.map-toolbar {
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: flex-start;
+}
+
+.map-empty {
+  min-height: 160px;
+  border: 1px dashed var(--vscode-panel-border);
+  border-radius: 4px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  color: var(--vscode-descriptionForeground);
+  background: var(--vscode-editor-background);
+  font-size: 12px;
+}
+
+.map-values {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.map-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 30px;
+  align-items: center;
+  gap: 8px;
+}
+
+.map-header-row {
+  color: var(--vscode-descriptionForeground);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 0 1px;
+}
+
+.map-cell-label {
+  padding: 0 4px;
+}
+
+.map-remove-spacer {
+  width: 30px;
+}
+
+.map-input {
+  min-width: 0;
+  height: 30px;
+
+  padding: 4px 8px;
+
+  border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
+  border-radius: 4px;
+  outline: none;
+
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background);
+
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 12px;
+}
+
+.map-input:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
+.map-input:disabled {
+  color: var(--vscode-disabledForeground);
+  opacity: 0.8;
+}
+
+.map-remove-button {
+  width: 30px;
+  height: 30px;
+
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 4px;
+
+  background: transparent;
+  color: var(--vscode-icon-foreground);
+
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.map-remove-button:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
+.map-editor-actions {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}

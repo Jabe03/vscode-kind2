@@ -38,6 +38,13 @@
               (click)="openSetEditor(stream, value)">
               Set
             </button>
+            <button
+              class="button array-view"
+              *ngSwitchCase="'map'"
+              [disabled]="!showViewMapButton(stream)"
+              (click)="openMapEditor(stream, value)">
+              Map
+            </button>
             <input class="textbox" *ngSwitchDefault [disabled]="isDisabled(component, stream)" type="text"
               (change)="inputChanged(stream.type, value, $event)" [attr.value]="valueToString(value[1])">
             </td>
@@ -170,6 +177,94 @@
           class="button"
           *ngIf="currentSetStream?.class === 'output'"
           (click)="closeSetEditor()"
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="map-overlay" *ngIf="showMapEditor">
+  <div class="map-editor-modal">
+    <div class="map-editor-header">
+      <h3>
+        {{ currentMapStream?.name }}
+        <span class="map-type">
+          map&lt;{{ getMapKeyType(currentMapStream!) }}, {{ getMapValueType(currentMapStream!) }}&gt;
+        </span>
+      </h3>
+
+      <button class="close-button" (click)="closeMapEditor()">×</button>
+    </div>
+
+    <div class="map-editor-content">
+      <div class="map-toolbar" *ngIf="currentMapStream?.class !== 'output'">
+        <button class="button" (click)="addMapEntry()">
+          + Add entry
+        </button>
+      </div>
+
+      <div class="map-empty" *ngIf="unsavedMapValues.length === 0">
+        Map is empty.
+      </div>
+
+      <div class="map-values" *ngIf="unsavedMapValues.length > 0">
+        <div class="map-row map-header-row">
+          <div class="map-cell-label">Key</div>
+          <div class="map-cell-label">Value</div>
+          <div class="map-remove-spacer"></div>
+        </div>
+
+        <div class="map-row" *ngFor="let entry of unsavedMapValues; let i = index">
+          <input
+            class="map-input"
+            type="text"
+            [value]="entry[0]"
+            [disabled]="currentMapStream?.class === 'output'"
+            (change)="mapKeyChanged(i, $event)"
+          />
+
+          <input
+            class="map-input"
+            type="text"
+            [value]="entry[1]"
+            [disabled]="currentMapStream?.class === 'output'"
+            (change)="mapValueChanged(i, $event)"
+          />
+
+          <button
+            class="map-remove-button"
+            *ngIf="currentMapStream?.class !== 'output'"
+            title="Remove entry"
+            (click)="removeMapEntry(i)"
+          >
+            x
+          </button>
+        </div>
+      </div>
+
+      <div class="map-editor-actions">
+        <button
+          class="button"
+          *ngIf="currentMapStream?.class !== 'output'"
+          (click)="saveMap()"
+        >
+          Save
+        </button>
+
+        <button
+          class="button"
+          *ngIf="currentMapStream?.class !== 'output'"
+          (click)="closeMapEditor()"
+        >
+          Cancel
+        </button>
+
+        <button
+          class="button"
+          *ngIf="currentMapStream?.class === 'output'"
+          (click)="closeMapEditor()"
         >
           Close
         </button>
