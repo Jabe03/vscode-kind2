@@ -219,7 +219,7 @@ body {
 }
 
 .array-editor-content {
-  padding: 12px;
+  padding: 2px;
   overflow: auto;
   flex: 1;
 }
@@ -294,16 +294,16 @@ body {
 
 .array-table .array-input {
   box-sizing: border-box;
-  width: 100%;
-  height: 100%;
+  width: 60%;
+  height: 60%;
 
-  padding: 4px;
+  padding: 1px;
   border: none;
   border-radius: 0;
 
   text-align: center;
   font-family: var(--vscode-editor-font-family, monospace);
-  font-size: 12px;
+  font-size: 11px;
 
   color: var(--vscode-input-foreground);
   background: transparent;
