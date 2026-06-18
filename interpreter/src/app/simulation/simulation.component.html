@@ -31,11 +31,11 @@
             <button class="button array-view" *ngSwitchCase="&quot;array&quot;" [disabled]="!showViewArrayButton(stream)" (click)="openArrayEditor(stream, value, undefined)">
               Array
             </button>
-            <!-- <button
+            <button
               class="button array-view"
               *ngSwitchCase="'set'"
               [disabled]="!showViewSetButton(stream)"
-              (click)="openSetEditor(stream, value)">
+              (click)="openSetEditor(stream, value, undefined)">
               Set
             </button>
             <button
@@ -44,7 +44,7 @@
               [disabled]="!showViewMapButton(stream)"
               (click)="openMapEditor(stream, value)">
               Map
-            </button> -->
+            </button>
             <input class="textbox" *ngSwitchDefault [disabled]="isDisabled(component, stream)" type="text"
               (change)="inputChanged(stream.type, value, $event)" [attr.value]="valueToString(value[1])">
             </td>
@@ -85,13 +85,13 @@
       <ng-container *ngSwitchCase="'2Darray'">
           <ng-container
             *ngTemplateOutlet="
-              arrayEditorTemplate;
+              array2DEditorTemplate;
               context: { $implicit: editor }
             "
           ></ng-container>
         </ng-container>
 
-        <!-- <ng-container *ngSwitchCase="'set'">
+        <ng-container *ngSwitchCase="'set'">
           <ng-container
             *ngTemplateOutlet="
               setEditorTemplate;
@@ -99,7 +99,7 @@
             "
           ></ng-container>
         </ng-container>
-
+ 
         <ng-container *ngSwitchCase="'map'">
           <ng-container
             *ngTemplateOutlet="
@@ -107,7 +107,7 @@
               context: { $implicit: editor }
             "
           ></ng-container>
-        </ng-container> -->
+        </ng-container>
       <div *ngSwitchDefault style="padding: 12px;">
         Unknown editor kind: {{ editor.editorKind }}
       </div>
@@ -123,7 +123,7 @@
       <h3>
         {{formatArrayName(editor)}}
       </h3>
-      <button class="close-button" (click)="closeArrayEditor()">×</button>
+      <button class="close-button" (click)="closeEditor()">×</button>
     </div>
     <div class="array-editor-content">
 <!-- *ngIf="editor.stream?.typeInfo?.sizes.length <= 2" -->
@@ -161,46 +161,46 @@
             
       <div class="array-editor-actions">
         <button class="button"  *ngIf="editor.stream?.class !== 'output'" (click)="saveArray(editor)">Save</button>
-        <button class="button"  *ngIf="editor.stream?.class !== 'output'" (click)="closeArrayEditor()">Cancel</button>
-        <button class="button"  *ngIf="editor.stream?.class === 'output'" (click)="closeArrayEditor()">Close</button>
+        <button class="button"  *ngIf="editor.stream?.class !== 'output'" (click)="closeEditor()">Cancel</button>
+        <button class="button"  *ngIf="editor.stream?.class === 'output'" (click)="closeEditor()">Close</button>
       </div>
     </div>
 </ng-template>
 
 
-<ng-template #arrayEditorTemplate let-editor>
+<ng-template #array2DEditorTemplate let-editor>
     <div class="array-editor-header">
       <h3>
         {{formatArrayName(editor)}}
       </h3>
-      <button class="close-button" (click)="closeArrayEditor()">×</button>
+      <button class="close-button" (click)="closeEditor()">×</button>
     </div>
     <div class="array-editor-content">
-<!-- *ngIf="editor.stream?.typeInfo?.sizes.length <= 2" -->
   <div  class="array-table-container">
     <table class="array-table">
       <thead>
         <tr>
           <th class="corner-cell"></th>
-          <th *ngFor="let col of getColIndices2D(editor)" class="col-header">{{(col === -1 ? "" : col)}}</th>
+          <th *ngFor="let col of getColIndices2D(editor)" class="col-header">{{col}}</th>
         </tr>
       </thead>
       <tbody>
         <tr *ngFor="let row of getRowIndices2D(editor); let rowIdx = index">
           <th class="row-header">{{row}}</th>
-          <td *ngFor="let col of getColIndices2D(editor); let colIdx = index">
-            <input *ngIf="editor.stream?.typeInfo?.baseType !== 'bool'"
-              type="text"
-              [defaultValue]="getArrayValue2D(editor,row, col).toString"
-              (change)="arrayValueChanged2D(editor,$event, row, col)"
-              class="array-input"
-              [disabled]="editor.stream?.class === 'output'"
-            />
-            <input *ngIf="editor.stream?.typeInfo?.baseType === 'bool'"
+          <td *ngFor="let col of getColIndices2D(editor); let colIdx = index" [ngSwitch] = "editor.valueType">
+            
+            <input *ngSwitchCase="'bool'"
               type="checkbox"
-              [defaultValue]="getArrayValue2D(editor, row, col).toString()"
+              [defaultChecked]="getArrayValue2D(editor, row, col)"
               (change)="arrayValueChanged2D(editor, $event, row, col)"
               class="array-checkbox"
+              [disabled]="editor.stream?.class === 'output'"
+            />
+            <input *ngSwitchDefault
+              type="text"
+              [defaultValue]="getArrayValue2D(editor,row, col).toString()"
+              (change)="arrayValueChanged2D(editor,$event, row, col)"
+              class="array-input"
               [disabled]="editor.stream?.class === 'output'"
             />
           </td>
@@ -211,51 +211,48 @@
             
       <div class="array-editor-actions">
         <button class="button"  *ngIf="editor.stream?.class !== 'output'" (click)="saveArray(editor)">Save</button>
-        <button class="button"  *ngIf="editor.stream?.class !== 'output'" (click)="closeArrayEditor()">Cancel</button>
-        <button class="button"  *ngIf="editor.stream?.class === 'output'" (click)="closeArrayEditor()">Close</button>
+        <button class="button"  *ngIf="editor.stream?.class !== 'output'" (click)="closeEditor()">Cancel</button>
+        <button class="button"  *ngIf="editor.stream?.class === 'output'" (click)="closeEditor()">Close</button>
       </div>
     </div>
 </ng-template>
 
-<!-- 
+
 <ng-template #setEditorTemplate let-editor>
     <div class="set-editor-header">
       <h3>
-        {{ currentSetStream?.name }}
-        <span class="set-type">
-          set&lt;{{ currentSetStream?.typeInfo?.baseType }}&gt;
-        </span>
+        {{formatSetName(editor)}}
       </h3>
 
-      <button class="close-button" (click)="closeSetEditor()">×</button>
+      <button class="close-button" (click)="closeEditor()">×</button>
     </div>
 
     <div class="set-editor-content">
-      <div class="set-toolbar" *ngIf="currentSetStream?.class !== 'output'">
-        <button class="button" (click)="addSetElement()">
+      <div class="set-toolbar" *ngIf="editor.stream?.class !== 'output'">
+        <button class="button" (click)="addSetElement(editor)">
           + Add element
         </button>
       </div>
 
-      <div class="set-empty" *ngIf="unsavedSetValues.length === 0">
+      <div class="set-empty" *ngIf="editor.unsavedValues.length === 0">
         Set is empty.
       </div>
 
       <div class="set-values">
-        <div class="set-item" *ngFor="let element of unsavedSetValues; let i = index">
+        <div class="set-item" *ngFor="let element of editor.unsavedValues; let i = index">
           <input
             class="set-input"
             type="text"
             [value]="element"
-            [disabled]="currentSetStream?.class === 'output'"
-            (change)="setElementChanged(i, $event)"
+            [disabled]="editor.stream.class === 'output'"
+            (change)="setElementChanged(editor, i, $event)"
           />
 
           <button
             class="set-remove-button"
-            *ngIf="currentSetStream?.class !== 'output'"
+            *ngIf="editor.stream?.class !== 'output'"
             title="Remove element"
-            (click)="removeSetElement(i)"
+            (click)="removeSetElement(editor, i)"
           >
             x
           </button>
@@ -265,24 +262,24 @@
       <div class="set-editor-actions">
         <button
           class="button"
-          *ngIf="currentSetStream?.class !== 'output'"
-          (click)="saveSet()"
+          *ngIf="editor.stream?.class !== 'output'"
+          (click)="saveSet(editor)"
         >
           Save
         </button>
 
         <button
           class="button"
-          *ngIf="currentSetStream?.class !== 'output'"
-          (click)="closeSetEditor()"
+          *ngIf="editor.stream?.class !== 'output'"
+          (click)="closeEditor()"
         >
           Cancel
         </button>
 
         <button
           class="button"
-          *ngIf="currentSetStream?.class === 'output'"
-          (click)="closeSetEditor()"
+          *ngIf="editor.stream?.class === 'output'"
+          (click)="closeEditor()"
         >
           Close
         </button>
@@ -293,55 +290,52 @@
 <ng-template #mapEditorTemplate let-editor>
     <div class="map-editor-header">
       <h3>
-        {{ currentMapStream?.name }}
-        <span class="map-type">
-          map&lt;{{ getMapKeyType(currentMapStream!) }}, {{ getMapValueType(currentMapStream!) }}&gt;
-        </span>
+        {{formatMapName(editor)}}
       </h3>
 
-      <button class="close-button" (click)="closeMapEditor()">×</button>
+      <button class="close-button" (click)="closeEditor()">×</button>
     </div>
 
     <div class="map-editor-content">
-      <div class="map-toolbar" *ngIf="currentMapStream?.class !== 'output'">
-        <button class="button" (click)="addMapEntry()">
+      <div class="map-toolbar" *ngIf="editor.stream?.class !== 'output'">
+        <button class="button" (click)="addMapEntry(editor)">
           + Add entry
         </button>
       </div>
 
-      <div class="map-empty" *ngIf="unsavedMapValues.length === 0">
+      <div class="map-empty" *ngIf="editor.unsavedValues.length === 0">
         Map is empty.
       </div>
 
-      <div class="map-values" *ngIf="unsavedMapValues.length > 0">
+      <div class="map-values" *ngIf="editor.unsavedValues.length > 0">
         <div class="map-row map-header-row">
           <div class="map-cell-label">Key</div>
           <div class="map-cell-label">Value</div>
           <div class="map-remove-spacer"></div>
         </div>
 
-        <div class="map-row" *ngFor="let entry of unsavedMapValues; let i = index">
+        <div class="map-row" *ngFor="let entry of editor.unsavedValues; let i = index">
           <input
             class="map-input"
             type="text"
             [value]="entry[0]"
-            [disabled]="currentMapStream?.class === 'output'"
-            (change)="mapKeyChanged(i, $event)"
+            [disabled]="editor.stream?.class === 'output'"
+            (change)="mapKeyChanged(editor, i, $event)"
           />
 
           <input
             class="map-input"
             type="text"
             [value]="entry[1]"
-            [disabled]="currentMapStream?.class === 'output'"
-            (change)="mapValueChanged(i, $event)"
+            [disabled]="editor.stream?.class === 'output'"
+            (change)="mapValueChanged(editor, i, $event)"
           />
 
           <button
             class="map-remove-button"
-            *ngIf="currentMapStream?.class !== 'output'"
+            *ngIf="editor.stream?.class !== 'output'"
             title="Remove entry"
-            (click)="removeMapEntry(i)"
+            (click)="removeMapEntry(editor, i)"
           >
             x
           </button>
@@ -351,27 +345,27 @@
       <div class="map-editor-actions">
         <button
           class="button"
-          *ngIf="currentMapStream?.class !== 'output'"
-          (click)="saveMap()"
+          *ngIf="editor.stream?.class !== 'output'"
+          (click)="saveMap(editor)"
         >
           Save
         </button>
 
         <button
           class="button"
-          *ngIf="currentMapStream?.class !== 'output'"
-          (click)="closeMapEditor()"
+          *ngIf="editor.stream?.class !== 'output'"
+          (click)="closeEditor()"
         >
           Cancel
         </button>
 
         <button
           class="button"
-          *ngIf="currentMapStream?.class === 'output'"
-          (click)="closeMapEditor()"
+          *ngIf="editor.stream?.class === 'output'"
+          (click)="closeEditor()"
         >
           Close
         </button>
       </div>
     </div>
-</ng-template> -->
+</ng-template>
