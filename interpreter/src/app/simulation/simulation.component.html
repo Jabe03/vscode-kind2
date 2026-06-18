@@ -28,10 +28,10 @@
             <td *ngFor="let value of stream.instantValues" [ngSwitch]="stream.type">
             <input class="checkbox" *ngSwitchCase="&quot;bool&quot;"
               (change)="checkboxChanged(component, stream, value, $event)" type="checkbox" [checked]="value[1]">
-            <button class="button array-view" *ngSwitchCase="&quot;array&quot;" [disabled]="!showViewArrayButton(stream)" (click)="openArrayEditor(stream, value)">
+            <button class="button array-view" *ngSwitchCase="&quot;array&quot;" [disabled]="!showViewArrayButton(stream)" (click)="openArrayEditor(stream, value, undefined)">
               Array
             </button>
-            <button
+            <!-- <button
               class="button array-view"
               *ngSwitchCase="'set'"
               [disabled]="!showViewSetButton(stream)"
@@ -44,7 +44,7 @@
               [disabled]="!showViewMapButton(stream)"
               (click)="openMapEditor(stream, value)">
               Map
-            </button>
+            </button> -->
             <input class="textbox" *ngSwitchDefault [disabled]="isDisabled(component, stream)" type="text"
               (change)="inputChanged(stream.type, value, $event)" [attr.value]="valueToString(value[1])">
             </td>
@@ -54,46 +54,104 @@
   </div>
 </div>
 
+<ng-container *ngFor="let editor of openEditors; trackBy: trackEditorById">
+  <ng-container
+    *ngTemplateOutlet="
+      editorWindowTemplate;
+      context: { $implicit: editor }
+    "
+  ></ng-container>
+</ng-container>
 
 
-<div class="array-overlay" *ngIf="showArrayEditor">
-  <div class="array-editor-modal">
+
+
+<ng-template #editorWindowTemplate let-editor>
+  <div class="variable-editor-overlay">
+    <div class="variable-editor-modal">
+
+      <ng-container [ngSwitch]="editor.editorKind">
+
+        <ng-container *ngSwitchCase="'1Darray'">
+          <ng-container
+            *ngTemplateOutlet="
+              array1DEditorTemplate;
+              context: { $implicit: editor }
+            "
+          ></ng-container>
+        </ng-container>
+
+
+      <ng-container *ngSwitchCase="'2Darray'">
+          <ng-container
+            *ngTemplateOutlet="
+              arrayEditorTemplate;
+              context: { $implicit: editor }
+            "
+          ></ng-container>
+        </ng-container>
+
+        <!-- <ng-container *ngSwitchCase="'set'">
+          <ng-container
+            *ngTemplateOutlet="
+              setEditorTemplate;
+              context: { $implicit: editor }
+            "
+          ></ng-container>
+        </ng-container>
+
+        <ng-container *ngSwitchCase="'map'">
+          <ng-container
+            *ngTemplateOutlet="
+              mapEditorTemplate;
+              context: { $implicit: editor }
+            "
+          ></ng-container>
+        </ng-container> -->
+      <div *ngSwitchDefault style="padding: 12px;">
+        Unknown editor kind: {{ editor.editorKind }}
+      </div>
+      </ng-container>
+
+    </div>
+  </div>
+</ng-template>
+
+
+<ng-template #array1DEditorTemplate let-editor>
     <div class="array-editor-header">
       <h3>
-        {{ currentStream?.name }} : 
-        <span class="array-type">
-          {{ currentStream?.typeInfo?.baseType }}^{{ currentStream?.typeInfo?.sizes?.join("^") }}
-        </span>
+        {{formatArrayName(editor)}}
       </h3>
       <button class="close-button" (click)="closeArrayEditor()">×</button>
     </div>
     <div class="array-editor-content">
-
-  <div *ngIf="currentStream?.typeInfo?.sizes.length <= 2" class="array-table-container">
+<!-- *ngIf="editor.stream?.typeInfo?.sizes.length <= 2" -->
+  <div  class="array-table-container">
     <table class="array-table">
       <thead>
-        <tr>
-          <th class="corner-cell"></th>
-          <th *ngFor="let col of getColIndices()" class="col-header">{{(col === -1 ? "" : col)}}</th>
-        </tr>
       </thead>
       <tbody>
-        <tr *ngFor="let row of getRowIndices(); let rowIdx = index">
+        <tr *ngFor="let row of getRowIndices(editor); let rowIdx = index">
           <th class="row-header">{{row}}</th>
-          <td *ngFor="let col of getColIndices(); let colIdx = index">
-            <input *ngIf="currentStream?.typeInfo?.baseType !== 'bool'"
-              type="text"
-              [attr.value]="getArrayValue(row, col)"
-              (change)="arrayValueChanged($event, row, col)"
-              class="array-input"
-              [disabled]="currentStream?.class === 'output'"
-            />
-            <input *ngIf="currentStream?.typeInfo?.baseType === 'bool'"
+          <td [ngSwitch]= "editor.valueType">
+            
+            <input *ngSwitchCase="'bool'"
               type="checkbox"
-              [attr.checked]="getArrayValue(row, col)"
-              (change)="arrayValueChanged($event, row, col)"
+              [defaultChecked]="getArrayValue(editor, row)"
+              (change)="arrayValueChanged(editor, $event, row)"
               class="array-checkbox"
-              [disabled]="currentStream?.class === 'output'"
+              [disabled]="editor.stream?.class === 'output'"
+            />
+            <button class="button array-view" *ngSwitchCase="'array'" [disabled]="!showViewArrayButton(editor.stream)" (click)="openArrayEditor(editor.stream, getNestedArrayValue(editor, row), row)">
+              Array
+            </button>
+            <input *ngSwitchDefault
+              type="text"
+              [defaultValue]="getArrayValue(editor,row).toString()"
+              (change)="arrayValueChanged(editor,$event, row)"
+              class="array-input"
+              [disabled]="editor.stream?.class === 'output'"
             />
           </td>
         </tr>
@@ -102,17 +160,65 @@
   </div>
             
       <div class="array-editor-actions">
-        <button class="button"  *ngIf="currentStream?.class !== 'output'" (click)="saveArray()">Save</button>
-        <button class="button"  *ngIf="currentStream?.class !== 'output'" (click)="closeArrayEditor()">Cancel</button>
-        <button class="button"  *ngIf="currentStream?.class === 'output'" (click)="closeArrayEditor()">Close</button>
+        <button class="button"  *ngIf="editor.stream?.class !== 'output'" (click)="saveArray(editor)">Save</button>
+        <button class="button"  *ngIf="editor.stream?.class !== 'output'" (click)="closeArrayEditor()">Cancel</button>
+        <button class="button"  *ngIf="editor.stream?.class === 'output'" (click)="closeArrayEditor()">Close</button>
       </div>
     </div>
+</ng-template>
+
+
+<ng-template #arrayEditorTemplate let-editor>
+    <div class="array-editor-header">
+      <h3>
+        {{formatArrayName(editor)}}
+      </h3>
+      <button class="close-button" (click)="closeArrayEditor()">×</button>
+    </div>
+    <div class="array-editor-content">
+<!-- *ngIf="editor.stream?.typeInfo?.sizes.length <= 2" -->
+  <div  class="array-table-container">
+    <table class="array-table">
+      <thead>
+        <tr>
+          <th class="corner-cell"></th>
+          <th *ngFor="let col of getColIndices2D(editor)" class="col-header">{{(col === -1 ? "" : col)}}</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let row of getRowIndices2D(editor); let rowIdx = index">
+          <th class="row-header">{{row}}</th>
+          <td *ngFor="let col of getColIndices2D(editor); let colIdx = index">
+            <input *ngIf="editor.stream?.typeInfo?.baseType !== 'bool'"
+              type="text"
+              [defaultValue]="getArrayValue2D(editor,row, col).toString"
+              (change)="arrayValueChanged2D(editor,$event, row, col)"
+              class="array-input"
+              [disabled]="editor.stream?.class === 'output'"
+            />
+            <input *ngIf="editor.stream?.typeInfo?.baseType === 'bool'"
+              type="checkbox"
+              [defaultValue]="getArrayValue2D(editor, row, col).toString()"
+              (change)="arrayValueChanged2D(editor, $event, row, col)"
+              class="array-checkbox"
+              [disabled]="editor.stream?.class === 'output'"
+            />
+          </td>
+        </tr>
+      </tbody>
+    </table>
   </div>
-</div>
+            
+      <div class="array-editor-actions">
+        <button class="button"  *ngIf="editor.stream?.class !== 'output'" (click)="saveArray(editor)">Save</button>
+        <button class="button"  *ngIf="editor.stream?.class !== 'output'" (click)="closeArrayEditor()">Cancel</button>
+        <button class="button"  *ngIf="editor.stream?.class === 'output'" (click)="closeArrayEditor()">Close</button>
+      </div>
+    </div>
+</ng-template>
 
-
-<div class="set-overlay" *ngIf="showSetEditor">
-  <div class="set-editor-modal">
+<!-- 
+<ng-template #setEditorTemplate let-editor>
     <div class="set-editor-header">
       <h3>
         {{ currentSetStream?.name }}
@@ -182,11 +288,9 @@
         </button>
       </div>
     </div>
-  </div>
-</div>
+</ng-template>
 
-<div class="map-overlay" *ngIf="showMapEditor">
-  <div class="map-editor-modal">
+<ng-template #mapEditorTemplate let-editor>
     <div class="map-editor-header">
       <h3>
         {{ currentMapStream?.name }}
@@ -270,5 +374,4 @@
         </button>
       </div>
     </div>
-  </div>
-</div>
+</ng-template> -->

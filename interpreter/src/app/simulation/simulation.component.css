@@ -152,7 +152,7 @@ body {
 
 
 
-.array-overlay {
+.variable-editor-overlay {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.45);
@@ -164,7 +164,7 @@ body {
   box-sizing: border-box;
 }
 
-.array-editor-modal {
+.variable-editor-modal {
   background: var(--vscode-editor-background);
   color: var(--vscode-editor-foreground);
   border: 1px solid var(--vscode-panel-border);
@@ -336,35 +336,6 @@ body {
   justify-content: flex-end;
 }
 
-
-
-.set-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.45);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-  padding: 16px;
-  box-sizing: border-box;
-}
-
-.set-editor-modal {
-  background: var(--vscode-editor-background);
-  color: var(--vscode-editor-foreground);
-  border: 1px solid var(--vscode-panel-border);
-  border-radius: 6px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
-
-  width: min(520px, 90vw);
-  max-height: 85vh;
-
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
 .set-editor-header {
   background: var(--vscode-sideBar-background);
   border-bottom: 1px solid var(--vscode-panel-border);
@@ -481,33 +452,6 @@ body {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
-}
-
-.map-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.45);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-  padding: 16px;
-  box-sizing: border-box;
-}
-
-.map-editor-modal {
-  background: var(--vscode-editor-background);
-  color: var(--vscode-editor-foreground);
-  border: 1px solid var(--vscode-panel-border);
-  border-radius: 6px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
-
-  width: min(640px, 90vw);
-  max-height: 85vh;
-
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
 }
 
 .map-editor-header {

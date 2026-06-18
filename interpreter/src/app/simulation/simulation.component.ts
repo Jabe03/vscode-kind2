@@ -2,6 +2,17 @@ import { Component, input, OnInit } from '@angular/core';
 import { Interpretation, Stream, StreamValue } from 'src/assets/Interpretation';
 import { VSCode } from 'src/assets/VSCode';
 
+type EditorKind = "1Darray" | "2Darray" | "set" | "map" | null;
+type Editor = {
+  id: number;
+  editorKind: EditorKind;
+  stream: Stream;
+  indexes: number[]
+  valueType: string,
+  streamValues: StreamValue[]
+  unsavedValues : StreamValue[];
+}
+
 @Component({
     selector: 'app-simulation',
     templateUrl: './simulation.component.html',
@@ -331,101 +342,203 @@ export class SimulationComponent implements OnInit {
 
 
 
-
-  public showArrayEditor: boolean = false;
-  public currentStream: Stream | null = null;
-  public unsavedValues: string[] | string[][] = [];
-  public arrayValues: StreamValue[] = [];
-
-  public getColIndices(): number[] {
-    if (this.currentStream?.typeInfo.sizes.length === 2) {
-      return Array.from({ length: this.currentStream?.typeInfo.sizes[1] }, (_, i) => i);
-    } else if (this.currentStream?.typeInfo.sizes.length === 1) {
-      return [-1];
-    } else {
+  openEditors: Editor[] = [];
+  private getCurrOpenIndexes() : number[]{
+    let idxs = this.openEditors.at(-1)?.indexes;
+    if (idxs == undefined){
       return [];
+    } 
+    return idxs;
+  }
+  private nextEditorID: number = 1;
+  trackEditorById(index: number, editor: Editor): number {
+    return editor.id;
+  }
+  formatArrayName(editor: Editor) : string {
+    let indexes = this.formatArrayIndexes(editor);
+    return (indexes.length == 0 ? "" : "(") +
+           editor.stream.name + " : " + this.formatArrayType(editor) + 
+           (indexes.length == 0 ? "":  ")" + indexes);
+  }
+  private formatArrayIndexes(editor: Editor): string {
+    let indexes = editor.indexes;
+    if (indexes.length == 0) {
+      return "";
+    } else {
+      return "[" + indexes.join("][") + "]";
     }
   }
+  private formatArrayType(editor: Editor): string {
+    const typeInfo = editor.stream?.typeInfo;
 
-  public getRowIndices(): number[] {
-      return Array.from({ length: this.currentStream?.typeInfo.sizes[0] }, (_, i) => i);
+    if (!typeInfo?.sizes) {
+      return "";
+    }
+
+    return `${typeInfo.baseType}^${typeInfo.sizes.slice().reverse().join("^")}`;
+  }
+
+  public getRowIndices(editor: Editor): number[] {
+    let result = Array.from({length: editor.streamValues.length}, (_, n) => n);
+      console.log("Getting row indicies", result);
+      return result;
    
   }
-
-  public getArrayValue(row: number, col?: number): string | boolean {
-    let ret: string = "";
-    if(col !== undefined && col !== -1) {
-      ret = (this.unsavedValues as string[][])[row][col];
+  
+   public getNestedArrayValue(editor: Editor, row: number, col?: number): StreamValue[] {
+    let ret: StreamValue;
+    if (editor.editorKind === "1Darray"){
+      ret = (editor.unsavedValues as StreamValue[][])[row];
     } else {
-      ret = (this.unsavedValues as string[])[row];
-    }
-    if (this.currentStream?.typeInfo.baseType === 'bool') {
-      return ret === "true";
+      throw new Error("editor is not an array editor but is being handled like one. Or mismatch between 1D and 2D array"+editor.editorKind + col)
     }
     return ret;
   }
-  public getValueFromEvent(event: Event): string {
-    if(this.currentStream?.typeInfo.baseType === 'bool') {
-      return (event.target as HTMLInputElement).checked ? "false" : "true";
+  public getArrayValue(editor: Editor, row: number): StreamValue {
+    let ret: StreamValue;
+    if (editor.editorKind === "1Darray"){
+      ret = (editor.streamValues)[row];
+    } else {
+      throw new Error("editor is not an array editor but is being handled like one. Or mismatch between 1D and 2D array"+editor.editorKind)
     }
-    return (event.target as HTMLInputElement).value;
+    return ret;
   }
-  public arrayValueChanged( event: Event, row: number, col?: number): void {
-    if(this.currentStream?.type == undefined){
+  public getValueFromEvent(editor:Editor, event: Event): StreamValue {
+    if(editor.stream?.typeInfo.baseType === 'bool') {
+      return (event.target as HTMLInputElement).checked ? true : false;
+    }
+    return this.getValueFromString((event.target as HTMLInputElement).value, editor.stream?.typeInfo.baseType);
+  }
+  public arrayValueChanged( editor: Editor, event: Event, row: number): void {
+    if(editor.stream?.type == undefined){
       console.error("Current stream type is undefined");
       return;
     }
-    if(col !== -1 && col !== undefined) {
-      (this.unsavedValues as string[][])[row][col] = this.getValueFromEvent(event);
-    } else{
-      this.unsavedValues[row] = this.getValueFromEvent(event);
-
-    }
+      editor.unsavedValues[row] = this.getValueFromEvent(editor, event);
   }
-  public openArrayEditor(stream: Stream, values: StreamValue[]): void {
-    this.currentStream = stream;
-    
-
-    if(values[1] !== undefined){
-      this.arrayValues = values[1] as StreamValue[];
+  public openArrayEditor(stream: Stream, values: StreamValue[], atIndex: number | undefined): void {
+    let arrayValues: StreamValue[];
+    let newIndexes: number[];
+    if (atIndex === undefined){
+      arrayValues =  values[1] as StreamValue[];
+      newIndexes = [];
     } else {
-      this.arrayValues = this.createNDimensionalArray(this.currentStream.typeInfo.sizes, "");
+      arrayValues = values as StreamValue[];
+      newIndexes = [...this.getCurrOpenIndexes(), atIndex];
     }
-    let numDims = this.currentStream.typeInfo.sizes.length;
-    if(numDims === 1) {
-      for (let i = 0; i < this.arrayValues.length; i++) {
-          this.unsavedValues[i] = this.arrayValues[i].toString(); 
+    console.log("Values: ", values)
+    // if(values[1] !== undefined){
+    //   arrayValues = values[1] as StreamValue[];
+    // } else {
+    //   arrayValues = this.createNDimensionalArray(stream.typeInfo.sizes, "");
+    // }
+    let numDims = stream.typeInfo.sizes.length;
+    let unsavedValues;
+    let editorKind: EditorKind;
+    // if(numDims === 2) {
+    //   editorKind = "2Darray";
+    //   arrayValues = values[1] as StreamValue[];
+    //   unsavedValues = arrayValues.map(row => (row as StreamValue[]).map(value => value.toString()));
+    // } else {
+      unsavedValues = [];
+     
+      editorKind = "1Darray";
+      for (let i = 0; i < arrayValues.length; i++) {
+          unsavedValues[i] = arrayValues[i]; 
       }
-    } else if(numDims === 2) {
-      this.unsavedValues = this.arrayValues.map(row => (row as StreamValue[]).map(value => value.toString()));
-    } else {
-      return;
-    }
+      let valueType: string;
+      if(stream.typeInfo.sizes.length - newIndexes.length  > 1){
+        valueType = "array"
+      } else {
+        valueType = stream.typeInfo.baseType;
+      }
+    // }
+    let newEditor = {
+        id: this.nextEditorID++,
+        stream: stream,
+        streamValues: arrayValues,
+        indexes: newIndexes,
+        valueType: valueType,
+        unsavedValues: unsavedValues,
+        editorKind: editorKind
+      };
 
-    this.showArrayEditor = true;
+    this.openEditors.push(
+      newEditor
+    )
+    console.log("Opened editor:", JSON.stringify(newEditor));
+    console.log(this.openEditors.length, "editors open");
   }
 
   public closeArrayEditor(): void {
-    this.showArrayEditor = false;
-    this.currentStream = null;
-    this.arrayValues = [];
-    this.unsavedValues = [];
+    this.openEditors.pop();
   }
 
-  public saveArray(): void {
-    const is2D = Array.isArray(this.unsavedValues[0]);
-    if(is2D){
-      for (let i = 0; i < (this.unsavedValues as string[][]).length; i++) {
-        const row = (this.unsavedValues as string[][])[i];
-        for (let j = 0; j < row.length; j++) {
-          (this.arrayValues[i] as StreamValue[])[j] = this.getValueFromString(row[j], this.currentStream?.typeInfo.baseType);
-        }
-      }
-    }else {
-      this.unsavedValues.forEach((value, index) => {
-        this.arrayValues[index] = this.getValueFromString(value as string, this.currentStream?.typeInfo.baseType);
+  public saveArray(editor : Editor): void {
+    console.log("Trying to save", editor.unsavedValues, "to", editor.streamValues);
+    
+     if(editor.valueType === "array"){
+          editor.unsavedValues.forEach((value, index) => {
+            editor.streamValues[index] = value;
+          });
+     } else {
+      editor.unsavedValues.forEach((value, index) => {
+        editor.streamValues[index] = value;
         
       });
+    }
+      console.log("Stream values are now", editor.stream.instantValues[1]);
+
+    this.closeArrayEditor();
+  }
+
+  public getColIndices2D(editor: Editor): number[] {
+    return Array.from({ length: editor.stream?.typeInfo.sizes[1] }, (_, i) => i);
+    
+  }
+
+  public getRowIndices2D(editor: Editor): number[] {
+      return Array.from({ length: editor.stream?.typeInfo.sizes[0] }, (_, i) => i);
+  }
+  //  public getNestedArrayValue2D(editor: Editor, row: number, col?: number): StreamValue[] {
+  //   let ret: StreamValue;
+  //   if (editor.editorKind === "1Darray"){
+  //     ret = (editor.streamValues as StreamValue[][])[row];
+  //   } else {
+  //     throw new Error("editor is not an array editor but is being handled like one. Or mismatch between 1D and 2D array"+editor.editorKind + col)
+  //   }
+  //   return ret;
+  // }
+  public getArrayValue2D(editor: Editor, row: number, col?: number): StreamValue {
+    let ret: StreamValue;
+    if(editor.editorKind === "2Darray" && col != undefined) {
+      ret = (editor.streamValues as StreamValue[][])[row][col];
+    } else {
+      throw new Error("editor is not an array editor but is being handled like one. Or mismatch between 1D and 2D array"+editor.editorKind + col)
+    }
+    return ret;
+  }
+  public arrayValueChanged2D( editor: Editor, event: Event, row: number, col?: number): void {
+    if(editor.stream?.type == undefined){
+      console.error("Current stream type is undefined");
+      return;
+    }
+    if(editor.editorKind === "2Darray" && col !== undefined) {
+      (editor.unsavedValues as StreamValue[][])[row][col] = this.getValueFromEvent(editor, event);
+    } else{
+      editor.unsavedValues[row] = this.getValueFromEvent(editor, event);
+
+    }
+  }
+ 
+  public saveArray2D(editor : Editor): void {
+    if(editor.editorKind === "2Darray"){
+      for (let i = 0; i < (editor.unsavedValues as string[][]).length; i++) {
+        const row = (editor.unsavedValues as string[][])[i];
+        for (let j = 0; j < row.length; j++) {
+          (editor.streamValues[i] as StreamValue[])[j] = this.getValueFromString(row[j], editor.stream?.typeInfo.baseType);
+        }
+      }
     }
 
     this.closeArrayEditor();
@@ -436,189 +549,180 @@ export class SimulationComponent implements OnInit {
     } 
     return true;
   }
-  public showViewSetButton(stream: Stream): boolean {
-     if(stream.class === "output") {
-        return stream.instantValues.some(value => value.length > 1);
-    } 
-    return true;
-  }
-
-    public showViewMapButton(stream: Stream): boolean {
-     if(stream.class === "output") {
-        return stream.instantValues.some(value => value.length > 1);
-    } 
-    return true;
-  }
+  
 
 
+//   public showViewSetButton(stream: Stream): boolean {
+//      if(stream.class === "output") {
+//         return stream.instantValues.some(value => value.length > 1);
+//     } 
+//     return true;
+//   }
+
+//     public showViewMapButton(stream: Stream): boolean {
+//      if(stream.class === "output") {
+//         return stream.instantValues.some(value => value.length > 1);
+//     } 
+//     return true;
+//   }
+
+  
+ 
+
+//   public openSetEditor(stream: Stream, values: StreamValue[]): void {
+//     this.currentSetStreamInstant = values;
+//     this.currentSetStream = stream;
+//     if(values[1] !== undefined){
+//       this.currentSetValues = values[1] as StreamValue[];
+//     } else {
+//       this.currentSetValues = [];
+//     }
+//     this.unsavedSetValues = this.currentSetValues.map(v => v.toString());
 
 
-  public showSetEditor: boolean = false;
-  public currentSetStreamInstant: StreamValue[] = [];
-  public currentSetValues: StreamValue[] = [];
-  public unsavedSetValues: string[] = [];
-  public currentSetStream: Stream | null = null;
+//     this.showSetEditor = true;
+//     console.log("Set editor opened for stream:", stream.name, "with values:", values);
+//   }
 
-  public openSetEditor(stream: Stream, values: StreamValue[]): void {
-    this.currentSetStreamInstant = values;
-    this.currentSetStream = stream;
-    if(values[1] !== undefined){
-      this.currentSetValues = values[1] as StreamValue[];
-    } else {
-      this.currentSetValues = [];
-    }
-    this.unsavedSetValues = this.currentSetValues.map(v => v.toString());
+//   public addSetElement(): void {
+//     if(this.currentSetValues == null){
+//       console.error("Current set stream is null");
+//       return;
+//     }
+//     this.unsavedSetValues.push("");
+//   }
 
+//   public setElementChanged(i:number, event: Event): void {
+//     if(this.unsavedSetValues == null){
+//       console.error("Current set stream is null");
+//       return;
+//     }
+//     this.unsavedSetValues[i] = this.getValueFromEvent(event);
+//   } 
+//   public removeSetElement(index: number): void {  
+//     if(this.currentSetValues == null){
+//       console.error("Current set stream is null");
+//       return;
+//     }
+//     this.unsavedSetValues.splice(index, 1);
+//   }
+//   public closeSetEditor(): void {
+//     this.showSetEditor = false;
+//     this.unsavedSetValues = [];
+//   }
 
-    this.showSetEditor = true;
-    console.log("Set editor opened for stream:", stream.name, "with values:", values);
-  }
-
-  public addSetElement(): void {
-    if(this.currentSetValues == null){
-      console.error("Current set stream is null");
-      return;
-    }
-    this.unsavedSetValues.push("");
-  }
-
-  public setElementChanged(i:number, event: Event): void {
-    if(this.unsavedSetValues == null){
-      console.error("Current set stream is null");
-      return;
-    }
-    this.unsavedSetValues[i] = this.getValueFromEvent(event);
-  } 
-  public removeSetElement(index: number): void {  
-    if(this.currentSetValues == null){
-      console.error("Current set stream is null");
-      return;
-    }
-    this.unsavedSetValues.splice(index, 1);
-  }
-  public closeSetEditor(): void {
-    this.showSetEditor = false;
-    this.unsavedSetValues = [];
-  }
-
-  public saveSet(): void {
-    this.currentSetValues = this.unsavedSetValues.map(value => this.getValueFromString(value, this.currentSetStream?.typeInfo.baseType));
-    this.currentSetStreamInstant[1] = this.currentSetValues;
-    this.closeSetEditor();
-  }
+//   public saveSet(): void {
+//     this.currentSetValues = this.unsavedSetValues.map(value => this.getValueFromString(value, this.currentSetStream?.typeInfo.baseType));
+//     this.currentSetStreamInstant[1] = this.currentSetValues;
+//     this.closeSetEditor();
+//   }
 
 
 
 
 
 
-  public getMapKeyType(stream: Stream): string {
-      return (
-        stream.typeInfo?.keyType 
-      );
-    }
+//   public getMapKeyType(stream: Stream): string {
+//       return (
+//         stream.typeInfo?.keyType 
+//       );
+//     }
 
-  public getMapValueType(stream: Stream): string {
-    return (
-      stream.typeInfo?.valueType
-    );
-  }
-
-
-
-  public showMapEditor: boolean = false;
-
-  public currentMapStreamInstant: StreamValue[] = [];
-  public currentMapStream: Stream | null = null;
-
-  public currentMapValues: StreamValue[][] = [];
-  public unsavedMapValues: string[][] = [];
+//   public getMapValueType(stream: Stream): string {
+//     return (
+//       stream.typeInfo?.valueType
+//     );
+//   }
 
 
-  public openMapEditor(stream: Stream, values: StreamValue[]): void {
-  this.currentMapStreamInstant = values;
-  this.currentMapStream = stream;
 
-  if (values[1] !== undefined) {
-    this.currentMapValues = values[1] as StreamValue[][];
-  } else {
-    this.currentMapValues = [];
-  }
+ 
 
-  this.unsavedMapValues = this.currentMapValues.map(entry => [
-    this.valueToString(entry[0])?.toString() ?? "",
-    this.valueToString(entry[1])?.toString() ?? ""
-  ]);
 
-  this.showMapEditor = true;
+//   public openMapEditor(stream: Stream, values: StreamValue[]): void {
+//   this.currentMapStreamInstant = values;
+//   this.currentMapStream = stream;
 
-  console.log("Map editor opened for stream:", stream.name, "with values:", values);
-}
+//   if (values[1] !== undefined) {
+//     this.currentMapValues = values[1] as StreamValue[][];
+//   } else {
+//     this.currentMapValues = [];
+//   }
 
-public addMapEntry(): void {
-  if (this.currentMapStream === null) {
-    console.error("Current map stream is null");
-    return;
-  }
+//   this.unsavedMapValues = this.currentMapValues.map(entry => [
+//     this.valueToString(entry[0])?.toString() ?? "",
+//     this.valueToString(entry[1])?.toString() ?? ""
+//   ]);
 
-  this.unsavedMapValues.push(["", ""]);
-}
+//   this.showMapEditor = true;
 
-public mapKeyChanged(index: number, event: Event): void {
-  if (this.currentMapStream === null) {
-    console.error("Current map stream is null");
-    return;
-  }
+//   console.log("Map editor opened for stream:", stream.name, "with values:", values);
+// }
 
-  this.unsavedMapValues[index][0] = (event.target as HTMLInputElement).value;
-}
+// public addMapEntry(): void {
+//   if (this.currentMapStream === null) {
+//     console.error("Current map stream is null");
+//     return;
+//   }
 
-public mapValueChanged(index: number, event: Event): void {
-  if (this.currentMapStream === null) {
-    console.error("Current map stream is null");
-    return;
-  }
+//   this.unsavedMapValues.push(["", ""]);
+// }
 
-  this.unsavedMapValues[index][1] = (event.target as HTMLInputElement).value;
-}
+// public mapKeyChanged(index: number, event: Event): void {
+//   if (this.currentMapStream === null) {
+//     console.error("Current map stream is null");
+//     return;
+//   }
 
-public removeMapEntry(index: number): void {
-  if (this.currentMapStream === null) {
-    console.error("Current map stream is null");
-    return;
-  }
+//   this.unsavedMapValues[index][0] = (event.target as HTMLInputElement).value;
+// }
 
-  this.unsavedMapValues.splice(index, 1);
-}
+// public mapValueChanged(index: number, event: Event): void {
+//   if (this.currentMapStream === null) {
+//     console.error("Current map stream is null");
+//     return;
+//   }
 
-public closeMapEditor(): void {
-  this.showMapEditor = false;
-  this.currentMapStream = null;
-  this.currentMapStreamInstant = [];
-  this.currentMapValues = [];
-  this.unsavedMapValues = [];
-}
+//   this.unsavedMapValues[index][1] = (event.target as HTMLInputElement).value;
+// }
 
-public saveMap(): void {
-  if (this.currentMapStream === null) {
-    console.error("Current map stream is null");
-    return;
-  }
+// public removeMapEntry(index: number): void {
+//   if (this.currentMapStream === null) {
+//     console.error("Current map stream is null");
+//     return;
+//   }
 
-  const keyType = this.getMapKeyType(this.currentMapStream);
-  const valueType = this.getMapValueType(this.currentMapStream);
+//   this.unsavedMapValues.splice(index, 1);
+// }
 
-  this.currentMapValues = this.unsavedMapValues.map(entry => {
-    const key = this.getValueFromString(entry[0], keyType);
-    const value = this.getValueFromString(entry[1], valueType);
+// public closeMapEditor(): void {
+//   this.showMapEditor = false;
+//   this.currentMapStream = null;
+//   this.currentMapStreamInstant = [];
+//   this.currentMapValues = [];
+//   this.unsavedMapValues = [];
+// }
 
-    return [key, value];
-  });
+// public saveMap(): void {
+//   if (this.currentMapStream === null) {
+//     console.error("Current map stream is null");
+//     return;
+//   }
 
-  this.currentMapStreamInstant[1] = this.currentMapValues;
+//   const keyType = this.getMapKeyType(this.currentMapStream);
+//   const valueType = this.getMapValueType(this.currentMapStream);
 
-  this.closeMapEditor();
-}
+//   this.currentMapValues = this.unsavedMapValues.map(entry => {
+//     const key = this.getValueFromString(entry[0], keyType);
+//     const value = this.getValueFromString(entry[1], valueType);
+
+//     return [key, value];
+//   });
+
+//   this.currentMapStreamInstant[1] = this.currentMapValues;
+
+//   this.closeMapEditor();
+// }
 }
 
 
