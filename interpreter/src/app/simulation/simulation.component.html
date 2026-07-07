@@ -146,6 +146,20 @@
             <button class="button array-view" *ngSwitchCase="'array'" [disabled]="!showViewArrayButton(editor.stream)" (click)="openArrayEditor(editor.stream, getNestedArrayValue(editor, row), row)">
               Array
             </button>
+             <button
+              class="button array-view"
+              *ngSwitchCase="'set'"
+              [disabled]="!showViewSetButton(editor.stream)"
+              (click)="openSetEditor(editor.stream, getNestedArrayValue(editor, row), row)">
+              Set
+            </button>
+            <button
+              class="button array-view"
+              *ngSwitchCase="'map'"
+              [disabled]="!showViewMapButton(editor.stream)"
+              (click)="openMapEditor(editor.stream, getNestedArrayValue(editor, row))">
+              Map
+            </button>
             <input *ngSwitchDefault
               type="text"
               [defaultValue]="getArrayValue(editor,row).toString()"

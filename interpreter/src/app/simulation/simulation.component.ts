@@ -46,15 +46,15 @@ export class SimulationComponent implements OnInit {
           json_data = JSON.parse(event.data.json)[0];
           console.log("Received data:", this._uri, this._main, json_data);
           } catch (e) {
-          
+          console.error(event.data.json);
           vscode.postMessage({ command: "showErrorMessage", text: "Kind 2 Error", internalError: JSON.stringify(event.data.json) });
           
           return;
         }
           
           this._ndVars = this.nonDeterministicVarsOf(json_data).map( (nd_var) => {return nd_var.name} ); 
-          this._components = this.flatten(json_data);
-
+          const newComponents = this.flatten(json_data);
+          this._components = this.mergeComponents(this._components ?? [], newComponents);
       }
     });
     vscode.postMessage("ready");
@@ -63,6 +63,72 @@ export class SimulationComponent implements OnInit {
   public get components(): Interpretation[] {
     return this._components;
   }
+
+  private isSetOrMapStream(stream: Stream): boolean {
+    return stream.type === "set" || stream.type === "map" || stream.type == "array";
+  }
+
+  private capStreamInstants(stream: Stream, maxInstants: number): Stream {
+    return {
+      ...stream,
+      instantValues: stream.instantValues.slice(0, maxInstants)
+    };
+  }
+
+  private streamKey(stream: Stream): string {
+    return stream.name;
+  }
+
+  private mergeInterpretation(
+    oldInterp: Interpretation | undefined,
+    newInterp: Interpretation
+  ): Interpretation {
+    if (oldInterp === undefined || oldInterp.name !== newInterp.name) {
+      return newInterp;
+    }
+
+    const nInstants = this.numInstants(newInterp);
+
+    const oldSetMapByName = new Map<string, Stream>();
+
+    for (const oldStream of oldInterp.streams) {
+      if (this.isSetOrMapStream(oldStream)) {
+        oldSetMapByName.set(this.streamKey(oldStream), oldStream);
+      }
+    }
+
+    const mergedStreams = newInterp.streams.map(newStream => {
+      if (!this.isSetOrMapStream(newStream)) {
+        return newStream;
+      }
+
+      const oldStream = oldSetMapByName.get(this.streamKey(newStream));
+
+      if (oldStream === undefined) {
+        return newStream;
+      }
+
+      return this.capStreamInstants(oldStream, nInstants);
+    });
+
+    return {
+      ...newInterp,
+      streams: mergedStreams
+    };
+  }
+
+  private mergeComponents(oldComponents: Interpretation[], newComponents: Interpretation[]): Interpretation[] {
+    const oldByName = new Map<string, Interpretation>();
+
+    for (const oldComponent of oldComponents) {
+      oldByName.set(oldComponent.name, oldComponent);
+    }
+
+    return newComponents.map(newComponent =>
+      this.mergeInterpretation(oldByName.get(newComponent.name), newComponent)
+    );
+  }
+
   //This function only works if constants with a definition are taken out of the interpreter trace.
   private nonDeterministicVarsOf(json: any) {
     let streams : Array<any> = json.streams;
@@ -93,10 +159,17 @@ export class SimulationComponent implements OnInit {
     }
     return interps;
   }
-
+  private numInstants (component: Interpretation) {
+    let nInsts = Math.max(
+      0,
+      ...component.streams.map(stream => stream.instantValues.length)
+    );
+    return nInsts;
+  }
   public numCols(): number {
-    let nCols = this._components[0].streams[0].instantValues.length;
-    if (nCols == 0) {
+    let nCols = this.numInstants(this._components[0]);
+
+    if (nCols === 0) {
       nCols = 10;
       this.changeColumns(nCols);
     }
@@ -381,7 +454,6 @@ export class SimulationComponent implements OnInit {
 
   public getRowIndices(editor: Editor): number[] {
     let result = Array.from({length: editor.streamValues.length}, (_, n) => n);
-      console.log("Getting row indicies", result);
       return result;
    
   }
@@ -405,10 +477,10 @@ export class SimulationComponent implements OnInit {
     return ret;
   }
   public getValueFromEvent(editor:Editor, event: Event): StreamValue {
-    if(editor.stream?.typeInfo.baseType === 'bool') {
+    if(editor.valueType === 'bool') {
       return (event.target as HTMLInputElement).checked ? true : false;
     }
-    return this.getValueFromString((event.target as HTMLInputElement).value, editor.stream?.typeInfo.baseType);
+    return this.getValueFromString((event.target as HTMLInputElement).value, editor.valueType);
   }
   public arrayValueChanged( editor: Editor, event: Event, row: number): void {
     if(editor.stream?.type == undefined){
@@ -433,7 +505,7 @@ export class SimulationComponent implements OnInit {
     let baseTypeDiff:number;
     if(numDims === 2) {
       editorKind = "2Darray";
-      unsavedValues = arrayValues.map(row => (row as StreamValue[]).map(value => value.toString()));
+      unsavedValues = arrayValues.map(row => (row as StreamValue[]).map(value => value));
       baseTypeDiff = 2;
     } else {
       unsavedValues = [];
@@ -471,7 +543,6 @@ export class SimulationComponent implements OnInit {
   }
 
   public saveArray(editor : Editor): void {
-    console.log("Trying to save", editor.unsavedValues, "to", editor.streamValues);
     
      if(editor.valueType === "array"){
           editor.unsavedValues.forEach((value, index) => {
@@ -490,14 +561,12 @@ export class SimulationComponent implements OnInit {
 
   public getColIndices2D(editor: Editor): number[] {
     let result = Array.from({length: (editor.streamValues as StreamValue[][])[0].length}, (_, n) => n);
-      console.log("Getting row indicies", result);
       return result;
    
   }
 
   public getRowIndices2D(editor: Editor): number[] {
     let result = Array.from({length: editor.streamValues.length}, (_, n) => n);
-      console.log("Getting row indicies", result);
       return result;
    
   }
@@ -534,10 +603,10 @@ export class SimulationComponent implements OnInit {
  
   public saveArray2D(editor : Editor): void {
     if(editor.editorKind === "2Darray"){
-      for (let i = 0; i < (editor.unsavedValues as string[][]).length; i++) {
-        const row = (editor.unsavedValues as string[][])[i];
+      for (let i = 0; i < (editor.unsavedValues as StreamValue[][]).length; i++) {
+        const row = (editor.unsavedValues as StreamValue[][])[i];
         for (let j = 0; j < row.length; j++) {
-          (editor.streamValues[i] as StreamValue[])[j] = this.getValueFromString(row[j], editor.stream?.typeInfo.baseType);
+          (editor.streamValues[i] as StreamValue[])[j] = row[j];
         }
       }
     }
@@ -572,13 +641,13 @@ export class SimulationComponent implements OnInit {
   }
 
   private formatSetType(editor: Editor): string {
-    const baseType = editor.stream?.typeInfo?.baseType;
+    const valueType = editor.stream?.typeInfo?.valueType;
 
-    if (baseType === undefined) {
+    if (valueType === undefined) {
       return "set<?>";
     }
 
-    return `set<${baseType}>`;
+    return `set<${valueType}>`;
   }
  
 
@@ -606,7 +675,7 @@ export class SimulationComponent implements OnInit {
       // if(stream.typeInfo.sizes.length - newIndexes.length  > 1){
       //   valueType = "array"
       // } else {
-        valueType = stream.typeInfo.baseType;
+        valueType = stream.typeInfo.valueType ?? stream.typeInfo.typeInfo.valueType;
       // }
     let newEditor = {
         id: this.nextEditorID++,
@@ -651,7 +720,6 @@ export class SimulationComponent implements OnInit {
 
   
   public saveSet(editor : Editor): void {
-    console.log("Trying to save", editor.unsavedValues, "to", editor.streamValues);
     
      if(editor.valueType === "array"){
           editor.unsavedValues.forEach((value, index) => {
@@ -752,7 +820,6 @@ public mapKeyChanged(editor: Editor, index: number, event: Event): void {
   }
 
   public saveMap(editor : Editor): void {
-    console.log("Trying to save", editor.unsavedValues, "to", editor.streamValues);
     
      if(editor.valueType === "array"){
           editor.unsavedValues.forEach((value, index) => {
