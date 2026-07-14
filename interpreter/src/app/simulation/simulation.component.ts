@@ -544,16 +544,11 @@ export class SimulationComponent implements OnInit {
 
   public saveArray(editor : Editor): void {
     
-     if(editor.valueType === "array"){
-          editor.unsavedValues.forEach((value, index) => {
-            editor.streamValues[index] = value;
-          });
-     } else {
-      editor.unsavedValues.forEach((value, index) => {
-        editor.streamValues[index] = value;
-        
-      });
-    }
+     editor.streamValues.splice(
+        0,
+        editor.streamValues.length,
+        ...editor.unsavedValues
+      );
       console.log("Stream values are now", editor.stream.instantValues[1]);
 
     this.closeEditor();
@@ -676,6 +671,13 @@ export class SimulationComponent implements OnInit {
       //   valueType = "array"
       // } else {
         valueType = stream.typeInfo.valueType ?? stream.typeInfo.typeInfo.valueType;
+        if (valueType === "record" || valueType === "tuple") {
+          vscode.postMessage({
+            command: "showErrorMessage",
+            text: `Simulator does not support record or tuple types in set streams (Stream: ${stream.name})`
+          });
+          return;
+        }
       // }
     let newEditor = {
         id: this.nextEditorID++,
@@ -720,17 +722,13 @@ export class SimulationComponent implements OnInit {
 
   
   public saveSet(editor : Editor): void {
-    
-     if(editor.valueType === "array"){
-          editor.unsavedValues.forEach((value, index) => {
-            editor.streamValues[index] = value;
-          });
-     } else {
-      editor.unsavedValues.forEach((value, index) => {
-        editor.streamValues[index] = value;
-        
-      });
-    }
+    console.log("Trying to save", editor.unsavedValues, "to", editor.streamValues);
+
+      editor.streamValues.splice(
+        0,
+        editor.streamValues.length,
+        ...editor.unsavedValues
+      );
       console.log("Stream values are now", editor.stream.instantValues[1]);
 
     this.closeEditor();
@@ -759,14 +757,22 @@ export class SimulationComponent implements OnInit {
   
 
 
-  public openMapEditor(stream: Stream, values: StreamValue[]): void {
+public openMapEditor(stream: Stream, values: StreamValue[]): void {
   const mapValues = (values[1] ??= []) as StreamValue[][];
 
   const unsavedValues = mapValues.map(entry => [
     entry[0],
     entry[1]
   ]);
-
+  let valueType = stream.typeInfo?.valueType;
+  let keyType = stream.typeInfo?.keyType;
+  if (valueType === "record" || valueType === "tuple" || keyType === "record" || keyType === "tuple") {
+    vscode.postMessage({
+            command: "showErrorMessage", 
+            text : `Simulator does not support record or tuple types in map streams (Stream: ${stream.name})`
+          });          
+          return;
+  }
   const newEditor: Editor = {
     id: this.nextEditorID++,
     editorKind: "map",
@@ -821,17 +827,12 @@ public mapKeyChanged(editor: Editor, index: number, event: Event): void {
 
   public saveMap(editor : Editor): void {
     
-     if(editor.valueType === "array"){
-          editor.unsavedValues.forEach((value, index) => {
-            editor.streamValues[index] = value;
-          });
-     } else {
-      editor.unsavedValues.forEach((value, index) => {
-        editor.streamValues[index] = value;
-        
-      });
-    }
-      console.log("Stream values are now", editor.stream.instantValues[1]);
+     editor.streamValues.splice(
+        0,
+        editor.streamValues.length,
+        ...editor.unsavedValues
+      );
+      console.log("Stream values are now", editor.stream.instantValues);
 
     this.closeEditor();
   }
