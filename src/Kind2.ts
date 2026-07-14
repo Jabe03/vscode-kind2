@@ -346,17 +346,8 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
   }
 
   public async updateComponents(uri: string): Promise<void> {
-    // First, cancel all running checks.
-    // for (const check of this._runningChecks.values()) {
-    //   check.cancel();
-    // }
-    // this._runningChecks = new Map<Component, CancellationTokenSource>();
-    // Then, remove all components of files depending on this one.
-    // for (const file of this._files) {
-    //   if (this._fileMap.has(file.uri) && this._fileMap.get(file.uri).has(uri)) {
-    //     file.components = [];
-    //   }
-    // }
+    // Do not cancel running checks here, since every incremental 
+    // update would cancel the check early 
     // This is now a main file.
     this._fileMap.set(uri, new Set<String>());
     const components: any[] = await this._client.sendRequest("kind2/getComponents", uri).then(values => {
@@ -423,7 +414,8 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
     await window.showTextDocument(Uri.parse(node.uri, true), { selection: range });
   }
 
-  
+  // Analysis launch is from one central method, the analysis 
+  // launched is determined by the parameter 'analysisType'.
   public async startAnalysis(mainComponent: Component, analysisType: AnalysisType): Promise<void> {
      mainComponent.analyses = [];
     mainComponent.state = ["running"];
@@ -460,6 +452,7 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
   public async realizability(mainComponent: Component): Promise<void> {
     this.startAnalysis(mainComponent, "realizability");
   }
+  // Handle a single update from the LSP about a running MCS analysis.
   public handleMinimalCutSet(uri, name, values){
     let mainComponent = this._files.find(f => f.uri === uri).findComponent(name);
     if(!this._runningChecks.has(mainComponent)) return;
@@ -527,10 +520,13 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
   }
 
   public minimalCutSetComplete(uri, name){
-
+     let mainComponent = this._files.find(f => f.uri === uri).findComponent(name);
+    mainComponent.hasRunningAnalysis = false;
+    this._runningChecks.delete(mainComponent);
+    this.updateAllComponents([mainComponent]);
   }
 
-
+  // Handle a single update from the LSP about a running check.
   public async handleCheck(uri, name, values) {
     let mainComponent = this._files.find(f => f.uri === uri).findComponent(name);
     if(!this._runningChecks.has(mainComponent)) return;
@@ -639,49 +635,18 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
      
       this.updateAllComponents(modifiedComponents);
   }
-
+  // Finish a running check
   public async checkComplete(uri, name){
-    //   if (mainComponent.state.length > 0 && mainComponent.state[0] === "running") {
-    //     mainComponent.state = ["passed"];
-    //   }
-        console.log("Check complete called");
-        let mainComponent = this._files.find(f => f.uri === uri).findComponent(name);
-        mainComponent.hasRunningAnalysis = false;
-        this._runningChecks.delete(mainComponent);
-        if (mainComponent.analyses.length == 0) {
-          mainComponent.state = ["passed"];
-        }
-        this.updateAllComponents([mainComponent]);
-
-
-  }
-
-  public async realizabilityOLD(mainComponent: Component): Promise<void> {
-    mainComponent.analyses = [];
-    mainComponent.state = ["running"];
-    let modifiedComponents: Component[] = [];
-    modifiedComponents.push(mainComponent);
-    this.updateAllComponents(modifiedComponents);
-    let tokenSource = new CancellationTokenSource();
-    this._runningChecks.set(mainComponent, tokenSource);
-    await this._client.sendRequest("kind2/realizability", [mainComponent.uri, mainComponent.name, mainComponent.kind], tokenSource.token).then((values: string[]) => {
-      this.handleRealizability(mainComponent.uri, mainComponent.name, values);
-    }).catch(reason => {
-      if (reason.message.includes("cancelled")) {
-        mainComponent.state = ["stopped"];
-      } else {
-        window.showErrorMessage(reason.message);
-        mainComponent.state = ["errored"];
-      }
-    });
-    if (mainComponent.state.length > 0 && mainComponent.state[0] === "running") {
+    let mainComponent = this._files.find(f => f.uri === uri).findComponent(name);
+    mainComponent.hasRunningAnalysis = false;
+    this._runningChecks.delete(mainComponent);
+    if (mainComponent.analyses.length == 0) {
       mainComponent.state = ["passed"];
     }
-    this.updateAllComponents(modifiedComponents);
-    this._runningChecks.delete(mainComponent);
+    this.updateAllComponents([mainComponent]);
   }
 
-
+  // Handle a single update from the LSP about a running realizability analysis.
   public handleRealizability(uri, name, values){
     let mainComponent = this._files.find(f => f.uri === uri).findComponent(name);
     if(!this._runningChecks.has(mainComponent)) return;

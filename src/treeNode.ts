@@ -6,7 +6,6 @@
 
 import { ThemeColor, ThemeIcon } from "vscode";
 import * as vscode from 'vscode';
-import { timeStamp } from "console";
 
 export type TreeNode = File | Component | Analysis | Property | Container;
 
@@ -179,7 +178,6 @@ export class Component {
     if (this._analyses.length == 0) {
       return this._state;
     }
-   
     let passedProperties = new Set<string>();
     let failedProperties = new Set<string>();
     let unknownProperties = new Set<string>();
