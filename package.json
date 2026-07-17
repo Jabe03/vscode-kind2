@@ -645,7 +645,10 @@
     "vscode:prepublish": "npm run esbuild-base -- --minify",
     "esbuild-base": "esbuild src/extension.ts --bundle --outfile=out/main.js --external:vscode --format=cjs --platform=node",
     "esbuild": "npm run esbuild-base -- --sourcemap",
-    "esbuild-watch": "npm run esbuild-base -- --sourcemap --watch"
+    "esbuild-watch": "npm run esbuild-base -- --sourcemap --watch",
+    "compile-tests": "tsc -p ./",
+    "test": "npm run compile-tests && node -e \"console.log('TypeScript compilation completed successfully')\"",
+    "test:integration": "npm run compile-tests && node ./out/test/runTest.js"
   },
   "dependencies": {
     "vscode-languageclient": "^6.1.4"

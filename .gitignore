@@ -3,3 +3,5 @@
 /kind2-language-server
 /linux
 /macos
+
+.vscode-test

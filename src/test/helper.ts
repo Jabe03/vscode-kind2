@@ -16,7 +16,7 @@ export let platformEol: string;
  */
 export async function activate(docUri: vscode.Uri) {
 	// The extensionId is `publisher.name` from package.json
-	const ext = vscode.extensions.getExtension('vscode-samples.lsp-sample')!;
+	const ext = vscode.extensions.getExtension('kind2-mc.vscode-kind2')!;
 	await ext.activate();
 	try {
 		doc = await vscode.workspace.openTextDocument(docUri);
@@ -32,11 +32,43 @@ async function sleep(ms: number) {
 }
 
 export const getDocPath = (p: string) => {
-	return path.resolve(__dirname, '../../testFixture', p);
+	return path.resolve(__dirname, '../../src/test/lustre-examples', p);
 };
 export const getDocUri = (p: string) => {
 	return vscode.Uri.file(getDocPath(p));
 };
+
+export async function openTestDocument(relPath: string): Promise<vscode.TextDocument> {
+	const docUri = getDocUri(relPath);
+	doc = await vscode.workspace.openTextDocument(docUri);
+	editor = await vscode.window.showTextDocument(doc);
+	return doc;
+}
+
+export async function openTestDocuments(relPaths: string[]): Promise<vscode.TextDocument[]> {
+	const documents: vscode.TextDocument[] = [];
+	for (const relPath of relPaths) {
+		documents.push(await openTestDocument(relPath));
+	}
+	return documents;
+}
+
+export async function executeExtensionCommand(command: string, ...args: any[]): Promise<unknown> {
+	return await vscode.commands.executeCommand(command, ...args);
+}
+
+export async function commandSucceeds(command: string, ...args: any[]): Promise<boolean> {
+	try {
+		await executeExtensionCommand(command, ...args);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+export async function commandFails(command: string, ...args: any[]): Promise<boolean> {
+	return !(await commandSucceeds(command, ...args));
+}
 
 export async function setTestContent(content: string): Promise<boolean> {
 	const all = new vscode.Range(
