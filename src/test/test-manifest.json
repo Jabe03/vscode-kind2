@@ -1,0 +1,16 @@
+{
+  "files": [
+    "abs.lus"
+  ],
+  "checks": [
+    {
+      "file": "abs.lus",
+      "nodes": [
+        {
+          "name": "AbsSpecAndBody",
+          "candidates": ["AbsSpecAndBody", "AbsSpecAndBodyIVC", "AbsSpecAndBodyFailed"]
+        }
+      ]
+    }
+  ]
+}

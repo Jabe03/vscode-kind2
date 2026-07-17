@@ -413,6 +413,19 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
     this.updateDecorations();
   }
 
+  public getComponents(uri: string): Component[] {
+    const file = this._files.find(f => f.uri === uri);
+    return file ? file.components : [];
+  }
+
+  public findComponent(uri: string, componentName?: string): Component | undefined {
+    const components = this.getComponents(uri);
+    if (!componentName) {
+      return components[0];
+    }
+    return components.find(component => component.name === componentName);
+  }
+
   public async showSource(node: TreeNode | Container): Promise<void> {
     if (node instanceof Analysis) {
       return;

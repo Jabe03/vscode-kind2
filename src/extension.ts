@@ -85,6 +85,31 @@ export async function activate(context: vscode.ExtensionContext) {
      Kind2SettingsProvider.updateSetting(treeNode);
   });
 
+  registerCommand('kind2/checkForTest', async (target: vscode.Uri | string | undefined, componentName?: string, candidates?: string[]) => {
+    const uri = typeof target === 'string' ? vscode.Uri.file(target) : target ?? vscode.window.activeTextEditor?.document.uri;
+    if (!uri) {
+      return { ok: false, error: 'No file URI provided for kind2/checkForTest' };
+    }
+
+    try {
+      await client.onReady();
+      await kind2.updateComponents(uri.toString());
+      const component = kind2.findComponent(uri.toString(), componentName) ??
+        (candidates ?? []).map(candidate => kind2.findComponent(uri.toString(), candidate)).find(Boolean);
+      if (!component) {
+        return { ok: false, error: `Could not find component ${componentName ?? '(first)'} in ${uri.toString()}` };
+      }
+
+      await kind2.check(component);
+      return { ok: true, component, state: component.state };
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+
   registerCommand('kind2/activateIVC', (element : Container) => {
     element.activateIVC();
     kind2.changeTreeData(element.parent);

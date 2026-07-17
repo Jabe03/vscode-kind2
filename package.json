@@ -648,7 +648,7 @@
     "esbuild-watch": "npm run esbuild-base -- --sourcemap --watch",
     "compile-tests": "tsc -p ./",
     "test": "npm run compile-tests && node -e \"console.log('TypeScript compilation completed successfully')\"",
-    "test:integration": "npm run compile-tests && node ./out/test/runTest.js"
+    "test:integration": "npm run esbuild && npm run compile-tests && (node ./out/test/runTest.js > /tmp/vscode-kind2-test.stdout 2> /tmp/vscode-kind2-test.stderr; status=$?; echo '--- test summary ---'; tail -n 60 /tmp/vscode-kind2-test.stdout; if [ -s /tmp/vscode-kind2-test.stderr ]; then echo '--- host stderr tail ---'; tail -n 20 /tmp/vscode-kind2-test.stderr; fi; exit $status)"
   },
   "dependencies": {
     "vscode-languageclient": "^6.1.4"

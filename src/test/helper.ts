@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as fs from 'fs';
 
 export let doc: vscode.TextDocument;
 export let editor: vscode.TextEditor;
@@ -20,8 +21,8 @@ export async function activate(docUri: vscode.Uri) {
 	await ext.activate();
 	try {
 		doc = await vscode.workspace.openTextDocument(docUri);
-		editor = await vscode.window.showTextDocument(doc);
-		await sleep(2000); // Wait for server activation
+		editor = await vscode.window.showTextDocument(doc, { preview: false });
+		await sleep(1000); // Wait for server activation
 	} catch (e) {
 		console.error(e);
 	}
@@ -68,6 +69,25 @@ export async function commandSucceeds(command: string, ...args: any[]): Promise<
 
 export async function commandFails(command: string, ...args: any[]): Promise<boolean> {
 	return !(await commandSucceeds(command, ...args));
+}
+
+export interface TestManifestNode {
+	name: string;
+	candidates?: string[];
+}
+
+export interface TestManifest {
+	files: string[];
+	checks: Array<{
+		file: string;
+		nodes: TestManifestNode[];
+	}>;
+}
+
+export function loadTestManifest(relativePath: string = 'test-manifest.json'): TestManifest {
+	const manifestPath = path.resolve(__dirname, '../../src/test', relativePath);
+	const content = fs.readFileSync(manifestPath, 'utf8');
+	return JSON.parse(content) as TestManifest;
 }
 
 export async function setTestContent(content: string): Promise<boolean> {
