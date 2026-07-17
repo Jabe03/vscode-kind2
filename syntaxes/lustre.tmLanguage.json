@@ -13,6 +13,9 @@
       "include": "#typeDecl"
     },
     {
+      "include": "#datatypeDecl"
+    },
+    {
       "include": "#const"
     },
     {
@@ -140,7 +143,7 @@
       ]
     },
     "blockAssGua": {
-      "begin": "\\b(assume|guarantee)\\b",
+      "begin": "\\b(assume|guarantee|decreases)\\b",
       "beginCaptures": {
         "0": {
           "name": "keyword.other.lustre"
@@ -540,7 +543,7 @@
       ]
     },
     "component": {
-      "begin": "(?=(opaque|transparent)?\\s*(node|function)\\b)",
+      "begin": "(?=(opaque|transparent)?\\s*(node|function|lemma)\\b)",
       "beginCaptures":
         {
 	  "1": {
@@ -573,8 +576,8 @@
       ]
     },
     "componentDecl": {
-      "comment": "More precisely, a node, a contract, or a function prefix.",
-      "begin": "\\b(contract|node|function)\\b",
+      "comment": "More precisely, a node, a contract, a function, or a lemma prefix.",
+      "begin": "\\b(contract|node|function|lemma)\\b",
       "end": ";|(?=\\(\\*@contract|con|const|param|var|let)",
       "beginCaptures": {
         "1": {
@@ -583,7 +586,7 @@
       },
       "patterns": [
         {
-          "match": "\\b(imported|returns)\\b",
+          "match": "\\b(imported|rec|returns)\\b",
           "captures": {
             "1": {
               "name": "keyword.other.lustre"
@@ -713,9 +716,12 @@
           "include": "#comment"
         },
         {
+          "include": "#matchBlock"
+        },
+        {
           "comment": "Keywords",
           "name": "keyword.control.lustre",
-          "match": "\\b(if|then|else|otherwise|not|and|xor|or|pre|fby|div|mod|lsh|rsh|reachable|provided|assuming|invariant|from|within|at|any|when|end)\\b"
+          "match": "\\b(if|then|else|otherwise|not|and|xor|or|pre|fby|div|mod|lsh|rsh|reachable|provided|assuming|invariant|from|within|at|any|when|cond|end)\\b"
         },
         {
           "comment": "Merge",
@@ -993,7 +999,7 @@
       },
       "patterns": [
         {
-          "begin": "(?<=(when|elsif))",
+          "begin": "(?<=when)",
           "end": "(?=then)",
           "patterns": [ 
             {
@@ -1006,7 +1012,7 @@
         },
         {
           "begin": "\\b(then)\\b",
-          "end": "\\b(elsif|else)\\b|(?=end)",
+          "end": "\\b(else)\\b|(?=end)",
           "beginCaptures": {
             "1": {
               "name": "keyword.other.lustre"
@@ -1020,6 +1026,9 @@
           "patterns": [ 
             {
               "include": "#whenBlock"
+            },
+            {
+              "include": "#condBlock"
             },
             {
               "include": "#equation"
@@ -1037,7 +1046,112 @@
               "include": "#whenBlock"
             },
             {
+              "include": "#condBlock"
+            },
+            {
               "include": "#equation"
+            },
+            {
+              "include": "#comment"
+            }
+          ]
+        },
+        {
+          "include": "#comment"
+        }
+      ]
+    },
+    "condBlock": {
+      "begin": "\\b(cond)\\b",
+      "end": "\\b(end)\\b",
+      "beginCaptures": {
+        "1": {
+          "name": "keyword.other.lustre"
+        }
+      },
+      "endCaptures": {
+        "1": {
+          "name": "keyword.other.lustre"
+        }
+      },
+      "patterns": [
+        {
+          "begin": "\\|",
+          "beginCaptures": {
+            "0": {
+              "name": "keyword.operator.lustre"
+            }
+          },
+          "end": "(?=\\||\\botherwise\\b|\\bend\\b)",
+          "patterns": [
+            {
+              "begin": "(?<=\\|)",
+              "end": "(?=:)",
+              "patterns": [
+                {
+                  "include": "#expression"
+                },
+                {
+                  "include": "#comment"
+                }
+              ]
+            },
+            {
+              "begin": ":",
+              "beginCaptures": {
+                "0": {
+                  "name": "keyword.operator.lustre"
+                }
+              },
+              "end": "(?=\\||\\botherwise\\b|\\bend\\b)",
+              "patterns": [
+                {
+                  "include": "#whenBlock"
+                },
+                {
+                  "include": "#condBlock"
+                },
+                {
+                  "include": "#equation"
+                },
+                {
+                  "include": "#comment"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "begin": "\\b(otherwise)\\b",
+          "end": "(?=\\bend\\b)",
+          "beginCaptures": {
+            "1": {
+              "name": "keyword.other.lustre"
+            }
+          },
+          "patterns": [
+            {
+              "begin": ":",
+              "beginCaptures": {
+                "0": {
+                  "name": "keyword.operator.lustre"
+                }
+              },
+              "end": "(?=\\bend\\b)",
+              "patterns": [
+                {
+                  "include": "#whenBlock"
+                },
+                {
+                  "include": "#condBlock"
+                },
+                {
+                  "include": "#equation"
+                },
+                {
+                  "include": "#comment"
+                }
+              ]
             },
             {
               "include": "#comment"
@@ -1090,6 +1204,12 @@
           "patterns": [
             { 
               "include": "#ifBlock" 
+            },
+            {
+              "include": "#whenBlock"
+            },
+            {
+              "include": "#condBlock"
             },
             {
               "include": "#equation"
@@ -1161,6 +1281,9 @@
         },
         {
           "include": "#whenBlock"
+        },
+        {
+          "include": "#condBlock"
         },
         {
           "include": "#equation"
@@ -1300,9 +1423,205 @@
         }
       ]
     },
+    "datatypeDecl": {
+      "comment": "Algebraic datatype declaration.",
+      "begin": "\\b(datatype)\\b\\s*(\\w+)",
+      "beginCaptures": {
+        "1": {
+          "name": "keyword.other.lustre"
+        },
+        "2": {
+          "name": "support.type.lustre"
+        }
+      },
+      "end": ";",
+      "patterns": [
+        {
+          "comment": "Type parameters.",
+          "begin": "<",
+          "end": ">",
+          "patterns": [
+            {
+              "name": "support.type.lustre",
+              "match": "\\w+"
+            },
+            {
+              "include": "#comment"
+            }
+          ]
+        },
+        {
+          "comment": "Constructors.",
+          "begin": "=",
+          "beginCaptures": {
+            "0": {
+              "name": "keyword.operator.lustre"
+            }
+          },
+          "end": "(?=;)",
+          "patterns": [
+            {
+              "name": "keyword.operator.lustre",
+              "match": "\\|"
+            },
+            {
+              "comment": "Constructor with argument types.",
+              "begin": "(\\w+)\\s*\\(",
+              "beginCaptures": {
+                "1": {
+                  "name": "entity.name.tag.lustre"
+                }
+              },
+              "end": "\\)",
+              "patterns": [
+                {
+                  "include": "#type"
+                },
+                {
+                  "include": "#comment"
+                }
+              ]
+            },
+            {
+              "comment": "Nullary constructor.",
+              "name": "entity.name.tag.lustre",
+              "match": "\\w+"
+            },
+            {
+              "include": "#comment"
+            }
+          ]
+        },
+        {
+          "include": "#comment"
+        }
+      ]
+    },
+    "matchPattern": {
+      "patterns": [
+        {
+          "include": "#comment"
+        },
+        {
+          "comment": "Constructor applied to sub-patterns.",
+          "begin": "(\\w+)\\s*\\(",
+          "beginCaptures": {
+            "1": {
+              "name": "entity.name.tag.lustre"
+            }
+          },
+          "end": "\\)",
+          "patterns": [
+            {
+              "include": "#matchPattern"
+            },
+            {
+              "name": "keyword.operator.lustre",
+              "match": ","
+            }
+          ]
+        },
+        {
+          "comment": "Wildcard or bound variable.",
+          "name": "variable.other.lustre",
+          "match": "[a-z_]\\w*"
+        },
+        {
+          "comment": "Nullary constructor.",
+          "name": "entity.name.tag.lustre",
+          "match": "[A-Z]\\w*"
+        }
+      ]
+    },
+    "matchBlock": {
+      "begin": "\\b(match)\\b",
+      "beginCaptures": {
+        "1": {
+          "name": "keyword.control.lustre"
+        }
+      },
+      "end": "\\b(end)\\b",
+      "endCaptures": {
+        "1": {
+          "name": "keyword.control.lustre"
+        }
+      },
+      "patterns": [
+        {
+          "comment": "Matched expression.",
+          "begin": "(?<=match)",
+          "end": "\\b(with)\\b",
+          "endCaptures": {
+            "1": {
+              "name": "keyword.control.lustre"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#matchBlock"
+            },
+            {
+              "include": "#expression"
+            },
+            {
+              "include": "#comment"
+            }
+          ]
+        },
+        {
+          "comment": "Cases.",
+          "begin": "\\|",
+          "beginCaptures": {
+            "0": {
+              "name": "keyword.operator.lustre"
+            }
+          },
+          "end": "(?=\\||\\bend\\b)",
+          "patterns": [
+            {
+              "comment": "Pattern.",
+              "begin": "(?<=\\|)",
+              "end": "(?=:)",
+              "patterns": [
+                {
+                  "include": "#matchPattern"
+                },
+                {
+                  "include": "#comment"
+                }
+              ]
+            },
+            {
+              "comment": "Case body.",
+              "begin": ":",
+              "beginCaptures": {
+                "0": {
+                  "name": "keyword.operator.lustre"
+                }
+              },
+              "end": "(?=\\||\\bend\\b)",
+              "patterns": [
+                {
+                  "include": "#matchBlock"
+                },
+                {
+                  "include": "#expression"
+                },
+                {
+                  "include": "#comment"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "include": "#comment"
+        }
+      ]
+    },
     "const": {
       "begin": "\\b(const|param)\\b",
-      "end": "(?=const|param|contract|function|node|opaque|transparent|let|type|var)",
+      "end": "(?=const|param|contract|function|lemma|node|opaque|transparent|let|type|var)",
       "beginCaptures": {
         "1": {
           "name": "keyword.other.lustre"
