@@ -61,12 +61,12 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
         let range = new Range(component.line, 0, component.line, 0);
         if (component.state.length > 0 && component.state[0] === "running") {
           codeLenses.push(new CodeLens(range, { title: "Cancel", command: "kind2/cancel", arguments: [component] }));
-          codeLenses.push(new CodeLens(range, { title: "Simulate", command: "kind2/interpret", arguments: [component, "[]"] }));
+          codeLenses.push(new CodeLens(range, { title: "Simulate", command: "kind2/interpret", arguments: [component, "[]", 10] }));
           codeLenses.push(new CodeLens(range, { title: "Raw Output", command: "kind2/raw", arguments: [component] }));
           codeLenses.push(new CodeLens(range, { title: "Show in Explorer", command: "kind2/reveal", arguments: [component] }));
         } else if (component.imported) {
           codeLenses.push(new CodeLens(range, { title: "Check Realizability", command: "kind2/realizability", arguments: [component] }));
-          codeLenses.push(new CodeLens(range, { title: "Simulate", command: "kind2/interpret", arguments: [component, "[]"] }));
+          codeLenses.push(new CodeLens(range, { title: "Simulate", command: "kind2/interpret", arguments: [component, "[]", 10] }));
           codeLenses.push(new CodeLens(range, { title: "Show in Explorer", command: "kind2/reveal", arguments: [component] }));
         } else if (component.typeDecl) {
           codeLenses. push(new CodeLens(range, { title: "Check Realizability", command: "kind2/realizability", arguments: [component] }));
@@ -86,7 +86,7 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
           codeLenses.push(new CodeLens(range, { title: "Check Properties", command: "kind2/check", arguments: [component] }));
           codeLenses.push(new CodeLens(range, { title: "Check Minimal Cut Set", command: "kind2/minimalCutSet", arguments: [component] }));
           codeLenses.push(new CodeLens(range, { title: "Check Realizability", command: "kind2/realizability", arguments: [component] }));
-          codeLenses.push(new CodeLens(range, { title: "Simulate", command: "kind2/interpret", arguments: [component, "[]"] }));
+          codeLenses.push(new CodeLens(range, { title: "Simulate", command: "kind2/interpret", arguments: [component, "[]", 10] }));
           codeLenses.push(new CodeLens(range, { title: "Raw Output", command: "kind2/raw", arguments: [component] }));
           codeLenses.push(new CodeLens(range, { title: "Show in Explorer", command: "kind2/reveal", arguments: [component] }));
         }
@@ -704,8 +704,8 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
     this._runningChecks.get(component).cancel();
   }
 
-  public async interpret(uri: string, main: string, json: string): Promise<void> {
-    await this._client.sendRequest("kind2/interpret", [uri, main, json]).then(async (interp: string) => {
+  public async interpret(uri: string, main: string, json: string, steps: number): Promise<void> {
+    await this._client.sendRequest("kind2/interpret", [uri, main, json, steps]).then(async (interp: string) => {
       WebPanel.createOrShow(this._context.extensionPath);
       await WebPanel.currentPanel?.sendMessage({ uri: uri, main: main, json: interp, type: "interp" });
     }).catch(reason => {

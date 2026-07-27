@@ -289,8 +289,9 @@ export class SimulationComponent implements OnInit {
       }
       json.push(object);
     }
-    console.log("Simulating with JSON:", JSON.stringify(json));
-    vscode.postMessage({ command: "kind2/interpret", args: [{ uri: this._uri, name: this._main }, JSON.stringify(json)] });
+    console.log("Simulating with JSON:", JSON.stringify(json), "Numcols:", this.numCols());
+
+    vscode.postMessage({ command: "kind2/interpret", args: [{ uri: this._uri, name: this._main }, JSON.stringify(json), this.numCols()] });
   }
   public valueToJSON(value: any): string | String | any[] | boolean | undefined {
     if (value === undefined) {

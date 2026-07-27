@@ -125,8 +125,8 @@ export async function activate(context: vscode.ExtensionContext) {
     await kind2.deadlock(analysis);
   });
 
-  registerCommand('kind2/interpret', async (component: { uri: string, name: string }, json: string) => {
-    await kind2.interpret(component.uri, component.name, json);
+  registerCommand('kind2/interpret', async (component: { uri: string, name: string }, json: string, steps: number) => {
+    await kind2.interpret(component.uri, component.name, json, steps);
   });
 
   registerCommand('kind2/showSource', async (node: TreeNode | Container) => await kind2.showSource(node));
