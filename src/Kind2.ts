@@ -724,7 +724,7 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
             analysis.realizabilitySource = "contract"
             //begin finding conflicting set
             let conflictingSet: Property[] = [];
-            analysisResult.conflictingSet[0]?.elements?.forEach(element => {
+            analysisResult.conflictingSet[0]?.elements?.forEach((element: any) => {
               let property = new Property(element.name, element.line - 1, component.uri, analysis)
               conflictingSet.push(property);
             });
@@ -751,7 +751,7 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
           component.analyses.push(analysis);
         }
         if (component.analyses.length == 0) { 
-          component.state = "passed";
+          component.state = ["passed"];
         }
         modifiedComponents.push(component);
       }
@@ -782,7 +782,7 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
   }
 
   public async interpret(uri: string, main: string, json: string): Promise<void> {
-    await this._client.sendRequest("kind2/interpret", [uri, main, json]).then(async (interp: string) => {
+    await this._client.sendRequest<string>("kind2/interpret", [uri, main, json]).then(async (interp: string) => {
       WebPanel.createOrShow(this._context.extensionPath);
       await WebPanel.currentPanel?.sendMessage({ uri: uri, main: main, json: interp, type: "interp" });
     }).catch(reason => {
@@ -791,7 +791,7 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
   }
 
   public async raw(component: Component): Promise<void> {
-    await this._client.sendRequest("kind2/getKind2Cmd", [component.uri, component.name]).then(async (cmd: string[]) => {
+    await this._client.sendRequest<string[]>("kind2/getKind2Cmd", [component.uri, component.name]).then(async (cmd: string[]) => {
       cmd = cmd.map(o => o.replace("%20", " "));
       await tasks.executeTask(new Task({ type: "kind2" }, TaskScope.Workspace, component.name, "Kind 2", new ShellExecution(cmd[0], cmd.slice(1))));
     }).catch(reason => {
@@ -804,7 +804,7 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
   }
 
   public async counterExample(property: Property): Promise<void> {
-    await this._client.sendRequest("kind2/counterExample", [property.parent.parent.uri, property.parent.parent.name,
+    await this._client.sendRequest<string>("kind2/counterExample", [property.parent.parent.uri, property.parent.parent.name,
     property.parent.abstract, property.parent.concrete, property.name]).then((ce: string) => {
       WebPanel.createOrShow(this._context.extensionPath);
       WebPanel.currentPanel?.sendMessage({ uri: property.parent.parent.uri, main: property.parent.parent.name, json: ce, type: "cex" });
@@ -826,7 +826,7 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
     else if (analysis.realizabilitySource === "type") {
       context = "type"
     }
-    await this._client.sendRequest("kind2/deadlock", [analysis.parent.uri, name, context]).then((dl: string) => {
+    await this._client.sendRequest<string>("kind2/deadlock", [analysis.parent.uri, name, context]).then((dl: string) => {
       WebPanel.createOrShow(this._context.extensionPath);
       WebPanel.currentPanel?.sendMessage({ uri: analysis.parent.uri, main: analysis.parent.name, json: dl, type : "dl" });
     }).catch(reason => {
