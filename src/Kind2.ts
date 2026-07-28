@@ -718,7 +718,7 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
       if (mainComponent.state.length > 0 && mainComponent.state[0] === "running") {
       mainComponent.state = ["passed"];
     }
-    this.updateAllComponents([]);
+    this.updateAllComponents([mainComponent]);
   }
 
   public cancel(component: Component) {
