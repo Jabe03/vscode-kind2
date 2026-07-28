@@ -632,7 +632,7 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
         }
         
         if (component.analyses.length == 0) {
-          component.state = "passed";
+          component.state = ["passed"];
         }
         modifiedComponents.push(component);
       }
