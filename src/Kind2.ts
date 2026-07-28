@@ -443,7 +443,15 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
         this.updateAllComponents([]);
     });
   }
- 
+  private findComponentByName(name: string, fileSet: File[]): Component | undefined {
+    let component: Component | undefined = undefined;
+    let i = 0;
+    while (component === undefined && i < fileSet.length) {
+      component = fileSet[i].components.find(c => c.name === name.split("<")[0]);
+      ++i;
+    }
+    return component;
+  }
 
   public async minimalCutSet(mainComponent: Component): Promise<void> {
     this.startAnalysis(mainComponent, "minimalCutSet");
@@ -549,13 +557,10 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
       files.push(file);
     }
       for (const nodeResult of results) {
-        let component = undefined;
-        let i = 0;
-        while (component === undefined) {
-          // Ignore type parameters on function names from the result
-          // as they are represented as just the name in the components
-          component = files[i].components.find(c => c.name === nodeResult.name.split("<")[0]);
-          ++i;
+        let component = this.findComponentByName(nodeResult.name, files);
+         if (component === undefined) {
+          console.log("Error: Could not find component " + nodeResult.name + " in any open file");
+          continue;
         }
         component.analyses = [];
         for (const analysisResult of nodeResult.analyses) {
@@ -659,11 +664,10 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
 
     let results: any[] = values.map(s => JSON.parse(s));
       for (const nodeResult of results) {
-        let component = undefined;
-        let i = 0;
-        while (component === undefined) {
-          component = this._files[i].components.find(c => c.name === nodeResult.name);
-          ++i;
+        let component = this.findComponentByName(nodeResult.name, this._files);
+        if (component === undefined) {
+          console.log("Error: Could not find component " + nodeResult.name + " in any open file");
+          continue;
         }
         for (const analysisResult of nodeResult.analyses) {
           let analysis: Analysis = new Analysis([], [], component);
