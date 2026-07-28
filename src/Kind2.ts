@@ -482,7 +482,17 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
     }
     return component;
   }
-
+  private findMainComponent(uri: string, name: string): Component {
+    let mainFile = this._files.find(f => f.uri === uri);
+    if (!mainFile) {
+      throw new Error("Could not find file " + uri);
+    }
+    let mainComponent = mainFile.findComponent(name);
+    if (!mainComponent) {
+      throw new Error("Could not find component " + name + " in file " + uri);
+    }
+    return mainComponent;
+  }
   public async minimalCutSet(mainComponent: Component): Promise<void> {
     return this.startAnalysis(mainComponent, "minimalCutSet");
   }
@@ -496,16 +506,7 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
   }
   // Handle a single update from the LSP about a running MCS analysis.
   public handleMinimalCutSet(uri: string, name: string, values: string[]){
-    let mainFile = this._files.find(f => f.uri === uri);
-    if (!mainFile) {
-      console.log("Error: Could not find file " + uri + " in any open file");
-      return;
-    }
-    let mainComponent = mainFile.findComponent(name);
-    if (!mainComponent) { 
-      console.log("Error: Could not find component " + name + " in file " + uri);
-      return;
-    }
+    let mainComponent = this.findMainComponent(uri, name);
     if(!this._runningChecks.has(mainComponent)) return;
     let modifiedComponents: Component[] = [];
     modifiedComponents.push(mainComponent);
@@ -570,16 +571,16 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
     this.updateAllComponents(modifiedComponents);
   }
 
-  public minimalCutSetComplete(uri, name){
-     let mainComponent = this._files.find(f => f.uri === uri).findComponent(name);
+  public minimalCutSetComplete(uri: string, name: string){
+    let mainComponent = this.findMainComponent(uri, name);
     mainComponent.hasRunningAnalysis = false;
     this._runningChecks.delete(mainComponent);
     this.updateAllComponents([mainComponent]);
   }
 
   // Handle a single update from the LSP about a running check.
-  public async handleCheck(uri, name, values) {
-    let mainComponent = this._files.find(f => f.uri === uri).findComponent(name);
+  public async handleCheck(uri: string, name: string, values: any[]) {
+    let mainComponent = this.findMainComponent(uri, name);
     if(!this._runningChecks.has(mainComponent)) return;
     console.log("Main component is:" + mainComponent);
     let results: any[] = values.map(s => JSON.parse(s));
@@ -684,19 +685,20 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
       this.updateAllComponents(modifiedComponents);
   }
   // Finish a running check
-  public async checkComplete(uri, name){
-    let mainComponent = this._files.find(f => f.uri === uri).findComponent(name);
+  public async checkComplete(uri: string, name: string){
+    let mainComponent = this.findMainComponent(uri, name);
     mainComponent.hasRunningAnalysis = false;
     this._runningChecks.delete(mainComponent);
     if (mainComponent.analyses.length == 0) {
       mainComponent.state = ["passed"];
     }
     this.updateAllComponents([mainComponent]);
+    return;
   }
 
   // Handle a single update from the LSP about a running realizability analysis.
-  public handleRealizability(uri, name, values){
-    let mainComponent = this._files.find(f => f.uri === uri).findComponent(name);
+  public handleRealizability(uri: string, name: string, values: any[]){
+    let mainComponent = this.findMainComponent(uri, name);
     if(!this._runningChecks.has(mainComponent)) return;
     let modifiedComponents: Component[] = [];
     modifiedComponents.push(mainComponent);
@@ -752,8 +754,8 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
       this.updateAllComponents(modifiedComponents);
   }
 
-  public realizabilityComplete(uri, name){
-    let mainComponent = this._files.find(f => f.uri === uri).findComponent(name);
+  public realizabilityComplete(uri: string, name: string){
+    let mainComponent = this.findMainComponent(uri, name);
       if (mainComponent.state.length > 0 && mainComponent.state[0] === "running") {
       mainComponent.state = ["passed"];
     }
@@ -764,7 +766,7 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
     this._runningChecks.get(component)?.cancel();
   }
 
-  private updateAllComponents(modifiedComponents){
+  private updateAllComponents(modifiedComponents: Component[]): void {
     for (const component of modifiedComponents) {
       this._treeDataChanged.fire(component);
     }
