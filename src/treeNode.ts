@@ -39,7 +39,9 @@ export class Container{
   value: number | undefined;
   children: TreeNode[];
   constructor(readonly parent: TreeNode, children: TreeNode[], readonly name: string, readonly tag: string, 
-    value?: number) {
+    value?: number, line?: number, uri? : string){
+    this.line = line ?? this.line;
+    this.uri = uri ?? this.uri;
     this.children = children;
     this.value = value;
   }
@@ -258,7 +260,7 @@ export class Component {
   }
 }
 
-export type RealizabilitySource = "inputs" | "contract" | "imported node" | "type"
+export type RealizabilitySource = "inputs" | "contract" | "imported node" | "type" | "unknown";
 
 // TODO Probably should make a hierarchy of Analysis with subclasses:
 //  MCSAnalysis and IVCAnalysis. Potentially merge MCS and IVC functionality since they are mostly the same
@@ -275,7 +277,7 @@ export class Analysis {
   
   private _properties: Property[];
   private _realizability: RealizabilityResult | undefined;
-  private _realizabilitySource: RealizabilitySource | undefined;
+  private _realizabilitySource: RealizabilitySource;
   set properties(properties: Property[]) { this._properties = properties; }
   get properties(): Property[] { return this._properties; }
 
@@ -338,8 +340,8 @@ export class Analysis {
   
   set realizability(realizability: RealizabilityResult | undefined) { this._realizability = realizability; }
   get realizability(): RealizabilityResult | undefined { return this._realizability; }
-  set realizabilitySource(realizabilitySource: RealizabilitySource | undefined) { this._realizabilitySource = realizabilitySource; }
-  get realizabilitySource(): RealizabilitySource | undefined { return this._realizabilitySource; }
+  set realizabilitySource(realizabilitySource: RealizabilitySource) { this._realizabilitySource = realizabilitySource; }
+  get realizabilitySource(): RealizabilitySource { return this._realizabilitySource; }
   
   constructor(readonly abstract: String[], readonly concrete: String[], readonly parent: Component) {
     this._properties = [];
@@ -349,6 +351,7 @@ export class Analysis {
     this._activeMCS = undefined;
     this._hasMCS = false;
     this._must = [];
+    this._realizabilitySource = "unknown";
   }
 }
 

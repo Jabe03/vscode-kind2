@@ -147,6 +147,7 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
       }
     }
     else if (element.realizability === "realizable") {
+      
       item = new TreeItem(element.realizabilitySource, TreeItemCollapsibleState.None);
       item.iconPath = Uri.file(path.join(this._context.extensionPath, statePath("passed")));
       return item;
