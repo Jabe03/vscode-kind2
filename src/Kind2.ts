@@ -454,15 +454,15 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
   }
 
   public async minimalCutSet(mainComponent: Component): Promise<void> {
-    this.startAnalysis(mainComponent, "minimalCutSet");
+    return this.startAnalysis(mainComponent, "minimalCutSet");
   }
 
    public async check(mainComponent: Component): Promise<void> {
-    this.startAnalysis(mainComponent, "check");
+    return this.startAnalysis(mainComponent, "check");
   }
 
   public async realizability(mainComponent: Component): Promise<void> {
-    this.startAnalysis(mainComponent, "realizability");
+    return this.startAnalysis(mainComponent, "realizability");
   }
   // Handle a single update from the LSP about a running MCS analysis.
   public handleMinimalCutSet(uri, name, values){
