@@ -103,14 +103,11 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
         this._treeDataChanged.fire(element);
 
   }
-  
-  public getTreeItem(element: TreeNode): TreeItem | Thenable<TreeItem> {
-    let item: TreeItem;
-    if (element instanceof File) {
-      item = new TreeItem(element.name, element.components.length === 0 ? TreeItemCollapsibleState.None : TreeItemCollapsibleState.Expanded);
-    }
-    else if (element instanceof Component) {
-      item = new TreeItem(element.name, element.analyses.length === 0 ? TreeItemCollapsibleState.None : TreeItemCollapsibleState.Expanded);
+  private makeFileTreeItem(element: File): TreeItem {
+    return new TreeItem(element.name, element.components.length === 0 ? TreeItemCollapsibleState.None : TreeItemCollapsibleState.Expanded);
+  }
+  private makeComponentTreeItem(element: Component): TreeItem {
+    let item = new TreeItem(element.name, element.analyses.length === 0 ? TreeItemCollapsibleState.None : TreeItemCollapsibleState.Expanded);
       item.contextValue = element.state.length > 0 && element.state[0] === "running" ? "running" : "component";
       item.command = {
           command: "kind2/showSource",
@@ -124,36 +121,53 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
       else {
         item.iconPath = Uri.file(path.join(this._context.extensionPath, statePath(element.state[0])));
       }
-    }
-    else if (element instanceof Analysis) {
-      if (element.realizability === undefined) {
+      return item;
+  }
+  private makeAnalysisTreeItem(element: Analysis): TreeItem {
+    let item: TreeItem;
+    if (element.realizability === undefined) {
         let label = "Abstract: " + (element.abstract.length == 0 ? "none" : "[" + element.abstract.toString() + "]");
         label += " - Concrete: " + (element.concrete.length == 0 ? "none" : "[" + element.concrete.toString() + "]");
         let hasContents: boolean = element.properties.length !== 0 || element.hasIVC || element.hasMCS;
         item = new TreeItem(label,  hasContents ? TreeItemCollapsibleState.Expanded : TreeItemCollapsibleState.None);
         item.contextValue = "analysis";
-      } 
-      else if( element.realizabilitySource === "contract") {
-          if (element.realizability === "realizable") {
-            item = new TreeItem(element.realizabilitySource, TreeItemCollapsibleState.None);
-            item.iconPath = Uri.file(path.join(this._context.extensionPath, statePath("passed")));
-          }
-          else if (element.realizability === "unrealizable") {
-            item = new TreeItem(element.realizabilitySource + ": conflicting set", TreeItemCollapsibleState.Collapsed);
-            item.iconPath = Uri.file(path.join(this._context.extensionPath, statePath("failed")));
-            item.contextValue = "hasDeadlock";
-
-          }
+        return item;
+    } 
+    else if(element.realizabilitySource === "contract") {
+      switch (element.realizability) {
+        case "realizable":
+          item = new TreeItem(element.realizabilitySource, TreeItemCollapsibleState.None);
+          item.iconPath = Uri.file(path.join(this._context.extensionPath, statePath("passed")));
+          return item;
+        case "unrealizable":
+          item = new TreeItem(element.realizabilitySource + ": conflicting set", TreeItemCollapsibleState.Collapsed);
+          item.iconPath = Uri.file(path.join(this._context.extensionPath, statePath("failed")));
+          item.contextValue = "hasDeadlock";
+          return item;
       }
-      else if (element.realizability === "realizable") {
-        item = new TreeItem(element.realizabilitySource, TreeItemCollapsibleState.None);
-        item.iconPath = Uri.file(path.join(this._context.extensionPath, statePath("passed")));
-      }
-      else {
-        item = new TreeItem(element.realizabilitySource, TreeItemCollapsibleState.None);
-        item.iconPath = Uri.file(path.join(this._context.extensionPath, statePath("failed")));
-        item.contextValue = "hasDeadlock";
-      }
+    }
+    else if (element.realizability === "realizable") {
+      item = new TreeItem(element.realizabilitySource, TreeItemCollapsibleState.None);
+      item.iconPath = Uri.file(path.join(this._context.extensionPath, statePath("passed")));
+      return item;
+    }
+    else {
+      item = new TreeItem(element.realizabilitySource, TreeItemCollapsibleState.None);
+      item.iconPath = Uri.file(path.join(this._context.extensionPath, statePath("failed")));
+      item.contextValue = "hasDeadlock";
+      return item;
+    }
+  }
+  public getTreeItem(element: TreeNode): TreeItem | Thenable<TreeItem> {
+    let item: TreeItem;
+    if (element instanceof File) {
+      return this.makeFileTreeItem(element);
+    }
+    else if (element instanceof Component) {
+      return this.makeComponentTreeItem(element);
+    }
+    else if (element instanceof Analysis) {
+      return this.makeAnalysisTreeItem(element);
     }
     else if(element instanceof Property) {
       item = new TreeItem(element.name, TreeItemCollapsibleState.None);
@@ -172,7 +186,12 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
         item.contextValue = "hasTrace";
       }
       item.iconPath = Uri.file(path.join(this._context.extensionPath, statePath(element.state)));
-    } else if(element instanceof Container){
+      return item;
+    } else {
+      // Item must be a container (IVC or MCS)
+      if (!(element instanceof Container)){
+        throw new Error("TreeNode is not a File, Component, Analysis, Property, or Container");
+      }
       item = new TreeItem(element.name, TreeItemCollapsibleState.Collapsed);
       if (element.tag === "ivc_button"){
         item.command = {
@@ -191,8 +210,8 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
         item.collapsibleState = TreeItemCollapsibleState.None;
         item.iconPath = element.icon;
       }
+      return item;
     }
-    return item;
   }
 
   public getChildren(element?: TreeNode): ProviderResult<TreeNode[]> {
