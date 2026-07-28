@@ -592,8 +592,15 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
       previousAnalyses.set(JSON.stringify({ abstract: analysis.abstract, concrete: analysis.concrete }), analysis);
     }
     let files: File[] = [];
-    for (const uri of this._fileMap.get(mainComponent.uri)) {
+    let fileSet = this._fileMap.get(uri);
+    if (!fileSet) {
+      throw new Error("File map does not contain main file: " + uri);
+    }
+    for (const uri of fileSet) {
       let file = this._files.find(f => f.uri === uri);
+      if (!file) {
+        throw new Error("Could not find file " + uri);
+      }
       files.push(file);
     }
       for (const nodeResult of results) {

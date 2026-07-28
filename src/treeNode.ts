@@ -272,7 +272,7 @@ export class Analysis {
   private _must: Property[];
   
   private _properties: Property[];
-  private _realizability: RealizabilityResult;
+  private _realizability: RealizabilityResult | undefined;
   private _realizabilitySource: RealizabilitySource;
   set properties(properties: Property[]) { this._properties = properties; }
   get properties(): Property[] { return this._properties; }
@@ -334,8 +334,8 @@ export class Analysis {
     this._activeMCS = selection;
   }
   
-  set realizability(realizability: RealizabilityResult) { this._realizability = realizability; }
-  get realizability(): RealizabilityResult { return this._realizability; }
+  set realizability(realizability: RealizabilityResult | undefined) { this._realizability = realizability; }
+  get realizability(): RealizabilityResult | undefined { return this._realizability; }
   set realizabilitySource(realizabilitySource: RealizabilitySource) { this._realizabilitySource = realizabilitySource; }
   get realizabilitySource(): RealizabilitySource { return this._realizabilitySource; }
   
