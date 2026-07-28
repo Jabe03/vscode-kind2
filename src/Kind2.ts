@@ -10,6 +10,8 @@ import { LanguageClient } from "vscode-languageclient";
 import { Analysis, Component, File, Property, State, statePath, TreeNode, stateColor, Container } from "./treeNode";
 import { WebPanel } from "./webviewPanel";
 
+type AnalysisType = "check" | "minimalCutSet" | "realizability"; 
+
 export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
   private _fileMap: Map<String, Set<String>>;
   private _files: File[];
@@ -348,17 +350,8 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
   }
 
   public async updateComponents(uri: string): Promise<void> {
-    // First, cancel all running checks.
-    for (const check of this._runningChecks.values()) {
-      check.cancel();
-    }
-    this._runningChecks = new Map<Component, CancellationTokenSource>();
-    // Then, remove all components of files depending on this one.
-    // for (const file of this._files) {
-    //   if (this._fileMap.has(file.uri) && this._fileMap.get(file.uri).has(uri)) {
-    //     file.components = [];
-    //   }
-    // }
+    // Do not cancel running checks here, since every incremental 
+    // update would cancel the check early 
     // This is now a main file.
     this._fileMap.set(uri, new Set<String>());
     const components: any[] = await this._client.sendRequest("kind2/getComponents", uri).then(values => {
@@ -425,112 +418,156 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
     await window.showTextDocument(Uri.parse(node.uri, true), { selection: range });
   }
 
-  public async minimalCutSet(mainComponent: Component): Promise<void> {
-    mainComponent.analyses = [];
+  // Analysis launch is from one central method, the analysis 
+  // launched is determined by the parameter 'analysisType'.
+  public async startAnalysis(mainComponent: Component, analysisType: AnalysisType): Promise<void> {
+     mainComponent.analyses = [];
     mainComponent.state = ["running"];
-    let files: File[] = [];
-    for (const uri of this._fileMap.get(mainComponent.uri)) {
-      let file = this._files.find(f => f.uri === uri);
-      files.push(file);
-    }
-    let modifiedComponents: Component[] = [];
-    modifiedComponents.push(mainComponent);
-    for (const component of modifiedComponents) {
-      this._treeDataChanged.fire(component);
-    }
-    this._codeLensesChanged.fire();
-    this.updateDecorations();
+    this.updateAllComponents([mainComponent]);
     let tokenSource = new CancellationTokenSource();
+    mainComponent.hasRunningAnalysis = true;
     this._runningChecks.set(mainComponent, tokenSource);
-    await this._client.sendRequest("kind2/minimalCutSet", [mainComponent.uri, mainComponent.name, mainComponent.kind], tokenSource.token).then((values: string[]) => {
-      let results: any[] = values.map(s => JSON.parse(s));
-      let result: any = results[0];
-        let component = mainComponent;
-        component.analyses = [];
-        
-          let analysis: Analysis = new Analysis(["abstract"], ["concrete"], component);
-          
-          //now handle IVC if present
-          if (result.mcsAnalysis) {
-            analysis.hasMCS = true;
-            for(let mcs of result.mcsAnalysis){
-              let mcsProperties: Property[]  = [];
-              let cutProperty = new Property(mcs.property, mcs.line - 1, component.uri, analysis, mcs.column - 1);
-              cutProperty.state = "mcs property";
-              mcsProperties.push(cutProperty);
-              for (const mcsNode of mcs.nodes) {
-                for(const mcsElement of mcsNode.elements) {
-                  let mcsProperty = new Property(mcsElement.name, mcsElement.line - 1, component.uri, analysis, mcsElement.column - 1);
-                  mcsProperty.state = "mcs cut";
-                  mcsProperties.push(mcsProperty);
-                }
-              }
-              analysis.addMCS(mcsProperties);
-            }
-          } else {
-            console.log("Error: MCS analysis not found in response");
-          }
-          
-          component.analyses.push(analysis);
-        
-        if (component.analyses.length == 0) {
-          component.state = ["passed"];
-        }
-        modifiedComponents.push(component);
-      
-      if (results.length == 0) {
-        mainComponent.state = ["unknown"];
-      }
-    }).catch(reason => {
+    await this._client.sendRequest(`kind2/${analysisType}`, [mainComponent.uri, mainComponent.name, mainComponent.kind], tokenSource.token).catch(reason => {
       if (reason.message.includes("cancelled")) {
+        this._runningChecks.delete(mainComponent);
+        mainComponent.analyses = [];
         mainComponent.state = ["stopped"];
+        console.log("Check has been cancelled for " + mainComponent + "(state:" + mainComponent.state + ")")
       } else {
         window.showErrorMessage(reason.message);
+        mainComponent.analyses = [];
         mainComponent.state = ["errored"];
       }
+    }).finally(() =>{
+        mainComponent.hasRunningAnalysis = false;
+        this.updateAllComponents([]);
     });
-    if (mainComponent.state.length > 0 && mainComponent.state[0] === "running") {
-      mainComponent.state = ["passed"];
+  }
+  private findComponentByName(name: string, fileSet: File[]): Component | undefined {
+    let component: Component | undefined = undefined;
+    let i = 0;
+    while (component === undefined && i < fileSet.length) {
+      component = fileSet[i].components.find(c => c.name === name.split("<")[0]);
+      ++i;
     }
-    for (const component of modifiedComponents) {
-      this._treeDataChanged.fire(component);
-    }
-    this._codeLensesChanged.fire();
-    this.updateDecorations();
-    this._runningChecks.delete(mainComponent);
+    return component;
   }
 
-  public async check(mainComponent: Component): Promise<void> {
-    mainComponent.analyses = [];
-    mainComponent.state = ["running"];
+  public async minimalCutSet(mainComponent: Component): Promise<void> {
+    return this.startAnalysis(mainComponent, "minimalCutSet");
+  }
+
+   public async check(mainComponent: Component): Promise<void> {
+    return this.startAnalysis(mainComponent, "check");
+  }
+
+  public async realizability(mainComponent: Component): Promise<void> {
+    return this.startAnalysis(mainComponent, "realizability");
+  }
+  // Handle a single update from the LSP about a running MCS analysis.
+  public handleMinimalCutSet(uri, name, values){
+    let mainComponent = this._files.find(f => f.uri === uri).findComponent(name);
+    if(!this._runningChecks.has(mainComponent)) return;
+    let modifiedComponents: Component[] = [];
+    modifiedComponents.push(mainComponent);
+
+    let previousAnalyses = new Map<string, Analysis>();
+    for (const analysis of mainComponent.analyses) {
+      previousAnalyses.set(JSON.stringify({ abstract: analysis.abstract, concrete: analysis.concrete }), analysis);
+    }
+
+    let results: any[] = values.map(s => JSON.parse(s));
+    let result: any = results[0];
+      let component = mainComponent;
+      component.analyses = [];
+      
+        let analysis: Analysis = new Analysis(["abstract"], ["concrete"], component);
+        let previousAnalysis = previousAnalyses.get(JSON.stringify({ abstract: analysis.abstract, concrete: analysis.concrete }));
+        let previousActiveMcs = previousAnalysis?.activeMCS;
+        let previousActiveIvc = previousAnalysis?.activeIVC;
+        
+        //now handle IVC if present
+        if (result.mcsAnalysis) {
+          analysis.hasMCS = true;
+          for(let mcs of result.mcsAnalysis){
+            let mcsProperties: Property[]  = [];
+            let cutProperty = new Property(mcs.property, mcs.line - 1, component.uri, analysis, mcs.column - 1);
+            cutProperty.state = "mcs property";
+            mcsProperties.push(cutProperty);
+            for (const mcsNode of mcs.nodes) {
+              for(const mcsElement of mcsNode.elements) {
+                let mcsProperty = new Property(mcsElement.name, mcsElement.line - 1, component.uri, analysis, mcsElement.column - 1);
+                mcsProperty.state = "mcs cut";
+                mcsProperties.push(mcsProperty);
+              }
+            }
+            analysis.addMCS(mcsProperties);
+          }
+        } else {
+          console.log("Error: MCS analysis not found in response");
+        }
+
+        if (previousActiveMcs !== undefined && previousActiveMcs >= 0 && previousActiveMcs < analysis.mcss.length) {
+          analysis.setActiveMCS(previousActiveMcs);
+        }
+        if (previousActiveIvc !== undefined) {
+          if (previousActiveIvc === -1 && analysis.must !== undefined) {
+            analysis.setActiveIVC(previousActiveIvc);
+          } else if (previousActiveIvc >= 0 && previousActiveIvc < analysis.ivcs.length) {
+            analysis.setActiveIVC(previousActiveIvc);
+          }
+        }
+        
+        component.analyses.push(analysis);
+      
+      if (component.analyses.length == 0) {
+        component.state = ["passed"];
+      }
+      modifiedComponents.push(component);
+    
+    if (results.length == 0) {
+      mainComponent.state = ["unknown"];
+    }
+    this.updateAllComponents(modifiedComponents);
+  }
+
+  public minimalCutSetComplete(uri, name){
+     let mainComponent = this._files.find(f => f.uri === uri).findComponent(name);
+    mainComponent.hasRunningAnalysis = false;
+    this._runningChecks.delete(mainComponent);
+    this.updateAllComponents([mainComponent]);
+  }
+
+  // Handle a single update from the LSP about a running check.
+  public async handleCheck(uri, name, values) {
+    let mainComponent = this._files.find(f => f.uri === uri).findComponent(name);
+    if(!this._runningChecks.has(mainComponent)) return;
+    console.log("Main component is:" + mainComponent);
+    let results: any[] = values.map(s => JSON.parse(s));
+    console.log("Got new check results: " /*+ JSON.stringify(results).substring()*/);
+    let modifiedComponents: Component[] = [];
+    modifiedComponents.push(mainComponent);
+    let previousAnalyses = new Map<string, Analysis>();
+    for (const analysis of mainComponent.analyses) {
+      previousAnalyses.set(JSON.stringify({ abstract: analysis.abstract, concrete: analysis.concrete }), analysis);
+    }
     let files: File[] = [];
     for (const uri of this._fileMap.get(mainComponent.uri)) {
       let file = this._files.find(f => f.uri === uri);
       files.push(file);
     }
-    let modifiedComponents: Component[] = [];
-    modifiedComponents.push(mainComponent);
-    for (const component of modifiedComponents) {
-      this._treeDataChanged.fire(component);
-    }
-    this._codeLensesChanged.fire();
-    this.updateDecorations();
-    let tokenSource = new CancellationTokenSource();
-    this._runningChecks.set(mainComponent, tokenSource);
-    await this._client.sendRequest("kind2/check", [mainComponent.uri, mainComponent.name, mainComponent.kind], tokenSource.token).then((values: string[]) => {
-      let results: any[] = values.map(s => JSON.parse(s));
       for (const nodeResult of results) {
-        let component = undefined;
-        let i = 0;
-        while (component === undefined) {
-          // Ignore type parameters on function names from the result
-          // as they are represented as just the name in the components
-          component = files[i].components.find(c => c.name === nodeResult.name.split("<")[0]);
-          ++i;
+        let component = this.findComponentByName(nodeResult.name, files);
+         if (component === undefined) {
+          console.log("Error: Could not find component " + nodeResult.name + " in any open file");
+          continue;
         }
         component.analyses = [];
         for (const analysisResult of nodeResult.analyses) {
           let analysis: Analysis = new Analysis(analysisResult.abstract, analysisResult.concrete, component);
+          let previousAnalysis = previousAnalyses.get(JSON.stringify({ abstract: analysisResult.abstract, concrete: analysisResult.concrete }));
+          let previousActiveIvc = previousAnalysis?.activeIVC;
+          let previousActiveMcs = previousAnalysis?.activeMCS;
           for (const propertyResult of analysisResult.properties) {
             // Filter out candidate properties
             if (propertyResult.isCandidate === "true") {
@@ -559,6 +596,7 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
           //now handle IVC if present
           if (analysisResult.ivcAnalysis) {
             for(let ivc of analysisResult.ivcAnalysis){
+              console.log("Got IVC properties: " + JSON.stringify(ivc));
               let ivcProperties: Property[]  = [];
               for (const ivcNode of ivc.nodes) {
                 for(const ivcElement of ivcNode.elements) {
@@ -570,8 +608,6 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
               analysis.addIVC(ivcProperties)
             }
           }
-          
-          component.analyses.push(analysis);
 
           if (analysisResult.ivcMust) {
               let ivcMust = analysisResult.ivcMust;
@@ -585,60 +621,53 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
               }
               analysis.must = mustProperties;
           }
+
+          if (previousActiveIvc !== undefined) {
+            if (previousActiveIvc === -1 && analysis.must !== undefined) {
+              analysis.setActiveIVC(previousActiveIvc);
+            } else if (previousActiveIvc >= 0 && previousActiveIvc < analysis.ivcs.length) {
+              analysis.setActiveIVC(previousActiveIvc);
+            }
+          }
+          if (previousActiveMcs !== undefined && previousActiveMcs >= 0 && previousActiveMcs < analysis.mcss.length) {
+            analysis.setActiveMCS(previousActiveMcs);
+          }
+
+          component.analyses.push(analysis);
         }
         
         if (component.analyses.length == 0) {
-          component.state = "passed";
+          component.state = ["passed"];
         }
         modifiedComponents.push(component);
       }
-      if (results.length == 0) {
-        mainComponent.state = ["passed"];
-      }
-    }).catch(reason => {
-      if (reason.message.includes("cancelled")) {
-        mainComponent.state = ["stopped"];
-      } else {
-        window.showErrorMessage(reason.message);
-        mainComponent.state = ["errored"];
-      }
-    });
-    if (mainComponent.state.length > 0 && mainComponent.state[0] === "running") {
+     
+      this.updateAllComponents(modifiedComponents);
+  }
+  // Finish a running check
+  public async checkComplete(uri, name){
+    let mainComponent = this._files.find(f => f.uri === uri).findComponent(name);
+    mainComponent.hasRunningAnalysis = false;
+    this._runningChecks.delete(mainComponent);
+    if (mainComponent.analyses.length == 0) {
       mainComponent.state = ["passed"];
     }
-    for (const component of modifiedComponents) {
-      this._treeDataChanged.fire(component);
-    }
-    this._codeLensesChanged.fire();
-    this.updateDecorations();
-    this._runningChecks.delete(mainComponent);
+    this.updateAllComponents([mainComponent]);
   }
 
-  public async realizability(mainComponent: Component): Promise<void> {
-    mainComponent.analyses = [];
-    mainComponent.state = ["running"];
-    let files: File[] = [];
-    for (const uri of this._fileMap.get(mainComponent.uri)) {
-      let file = this._files.find(f => f.uri === uri);
-      files.push(file);
-    }
+  // Handle a single update from the LSP about a running realizability analysis.
+  public handleRealizability(uri, name, values){
+    let mainComponent = this._files.find(f => f.uri === uri).findComponent(name);
+    if(!this._runningChecks.has(mainComponent)) return;
     let modifiedComponents: Component[] = [];
     modifiedComponents.push(mainComponent);
-    for (const component of modifiedComponents) {
-      this._treeDataChanged.fire(component);
-    }
-    this._codeLensesChanged.fire();
-    this.updateDecorations();
-    let tokenSource = new CancellationTokenSource();
-    this._runningChecks.set(mainComponent, tokenSource);
-    await this._client.sendRequest("kind2/realizability", [mainComponent.uri, mainComponent.name, mainComponent.kind], tokenSource.token).then((values: string[]) => {
-      let results: any[] = values.map(s => JSON.parse(s));
+
+    let results: any[] = values.map(s => JSON.parse(s));
       for (const nodeResult of results) {
-        let component = undefined;
-        let i = 0;
-        while (component === undefined) {
-          component = files[i].components.find(c => c.name === nodeResult.name);
-          ++i;
+        let component = this.findComponentByName(nodeResult.name, this._files);
+        if (component === undefined) {
+          console.log("Error: Could not find component " + nodeResult.name + " in any open file");
+          continue;
         }
         for (const analysisResult of nodeResult.analyses) {
           let analysis: Analysis = new Analysis([], [], component);
@@ -681,27 +710,27 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
       if (results.length == 0) {
         mainComponent.state = ["passed"];
       }
-    }).catch(reason => {
-      if (reason.message.includes("cancelled")) {
-        mainComponent.state = ["stopped"];
-      } else {
-        window.showErrorMessage(reason.message);
-        mainComponent.state = ["errored"];
-      }
-    });
-    if (mainComponent.state.length > 0 && mainComponent.state[0] === "running") {
+      this.updateAllComponents(modifiedComponents);
+  }
+
+  public realizabilityComplete(uri, name){
+    let mainComponent = this._files.find(f => f.uri === uri).findComponent(name);
+      if (mainComponent.state.length > 0 && mainComponent.state[0] === "running") {
       mainComponent.state = ["passed"];
     }
+    this.updateAllComponents([mainComponent]);
+  }
+
+  public cancel(component: Component) {
+    this._runningChecks.get(component)?.cancel();
+  }
+
+  private updateAllComponents(modifiedComponents){
     for (const component of modifiedComponents) {
       this._treeDataChanged.fire(component);
     }
     this._codeLensesChanged.fire();
     this.updateDecorations();
-    this._runningChecks.delete(mainComponent);
-  }
-
-  public cancel(component: Component) {
-    this._runningChecks.get(component).cancel();
   }
 
   public async interpret(uri: string, main: string, json: string): Promise<void> {
