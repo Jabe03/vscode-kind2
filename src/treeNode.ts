@@ -387,8 +387,7 @@ export function statePath(state: State) {
     case "inputs unrealizable":
     case "contract unrealizable":
     case "type unrealizable":
-    case "conflicting":  
-    case "mcs property":
+    case "conflicting":
       return "icons/failed.svg";
     case "unknown":
       return "icons/unknown.svg";
