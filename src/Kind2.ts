@@ -308,14 +308,21 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
         }
         for(const ivcProperty of component.ivcProperties) {
           if (decorations.has(ivcProperty.uri) && (ivcProperty.line != component.line) && (ivcProperty.line != component.contractLine)) {
-            let decorationOptions: DecorationOptions = { range: new Range(new Position(ivcProperty.line, ivcProperty.startCol), (new Position(ivcProperty.line, 100))), hoverMessage: `${ivcProperty.state}` };
-            decorations.get(ivcProperty.uri)?.get(ivcProperty.state)?.push(decorationOptions);          }
+            let col: number = ivcProperty.startCol === undefined ? 0 : ivcProperty.startCol;
+            if (!ivcProperty.startCol && ivcProperty.startCol !== 0) { console.log("Undefined startCol for IVC property: " + ivcProperty.name); };
+            
+            let decorationOptions: DecorationOptions = { range: new Range(new Position(ivcProperty.line, col), (new Position(ivcProperty.line, 100))), hoverMessage: `${ivcProperty.state}` };
+            decorations.get(ivcProperty.uri)?.get(ivcProperty.state)?.push(decorationOptions);
+          }
         }
         for(const mcsProperty of component.mcsProperties) {
           if (decorations.has(mcsProperty.uri) && (mcsProperty.line != component.line) && (mcsProperty.line != component.contractLine)) {
             let msg: string = mcsProperty.state === "mcs property" ? "Cut property: " + mcsProperty.name : mcsProperty.name;
-            let decorationOptions: DecorationOptions = { range: new Range(new Position(mcsProperty.line, mcsProperty.startCol), (new Position(mcsProperty.line, 100))), hoverMessage: `${msg}` };
-            decorations.get(mcsProperty.uri)?.get(mcsProperty.state)?.push(decorationOptions);          }
+            let col: number = mcsProperty.startCol === undefined ? 0 : mcsProperty.startCol;
+            if (!mcsProperty.startCol && mcsProperty.startCol !== 0) { console.log("Undefined startCol for MCS property: " + mcsProperty.name); };
+            let decorationOptions: DecorationOptions = { range: new Range(new Position(mcsProperty.line, col), (new Position(mcsProperty.line, 100))), hoverMessage: `${msg}` };
+            decorations.get(mcsProperty.uri)?.get(mcsProperty.state)?.push(decorationOptions);
+          }
         }
         const keys = Array.from(conflictingSet.keys()).map(k => `*${k}*`);
         for(const [propertyName,propertyDecorationOptions] of conflictingSet.entries()) {
