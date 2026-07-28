@@ -34,15 +34,14 @@ export class Container{
   // you can use the "show source" button in the TreeView. Same for uri.
   // It is impossible for the extension in its current state to ever access
   // these variables, but it supresses the type checker errors
-  line: number;
-  uri: string;
-
+  line: number = -1;
+  uri: string = "undefined";
+  value: number | undefined;
   children: TreeNode[];
   constructor(readonly parent: TreeNode, children: TreeNode[], readonly name: string, readonly tag: string, 
-    readonly value?: number, line?: number, uri?: string) {
+    value?: number) {
     this.children = children;
-    this.line = line;
-    this.uri = uri;
+    this.value = value;
   }
   private get parentAnalysis(): Analysis{
      
@@ -187,7 +186,7 @@ export class Component {
     let failedProperties = new Set<string>();
     let unknownProperties = new Set<string>();
     let erroredProperties = new Set<string>();
-    var ret = [];
+    var ret : State[] = [];
     for (const analysis of this._analyses) {
       for (const property of analysis.properties) {
         if (property.state === "passed" || property.state === "reachable") { passedProperties.add(property.name); }
@@ -251,8 +250,11 @@ export class Component {
     this._state = ["pending"];
     this._analyses = [];
     this._imported = importedComp === "true";
+    this._kind = compKind as component_kind;
     this.kind = compKind;
     this._hasRefType = hasRefinementType;
+    this._hasRunningAnalysis = false;
+
   }
 }
 
@@ -263,17 +265,17 @@ export type RealizabilitySource = "inputs" | "contract" | "imported node" | "typ
 export class Analysis {
   
   
-  private _activeMCS: number;
+  private _activeMCS: number | undefined;
   private _mcss: Property[][];
   private _hasMCS: boolean;
   
-  private _activeIvc: number;
+  private _activeIvc: number | undefined;
   private _ivcs: Property[][];
   private _must: Property[];
   
   private _properties: Property[];
   private _realizability: RealizabilityResult | undefined;
-  private _realizabilitySource: RealizabilitySource;
+  private _realizabilitySource: RealizabilitySource | undefined;
   set properties(properties: Property[]) { this._properties = properties; }
   get properties(): Property[] { return this._properties; }
 
@@ -289,8 +291,8 @@ export class Analysis {
     if(this._ivcs.length == 0) this._activeIvc = 0;
     this._ivcs.push(ivc);
   }
-  public setActiveIVC(selection: number){
-    if(selection >= this._ivcs.length || selection < -1){
+  public setActiveIVC(selection: number | undefined){
+    if(selection === undefined || selection >= this._ivcs.length || selection < -1){
       throw new Error(`Selection index ${selection} is out of bounds for IVCs of length ${this._ivcs.length}`);
     }
     this._activeIvc = selection;
@@ -327,8 +329,8 @@ export class Analysis {
     if(this._activeMCS === undefined) return [];
     return this._mcss[this._activeMCS]; 
   }
-  public setActiveMCS(selection: number){
-    if(selection >= this._mcss.length || selection < 0){
+  public setActiveMCS(selection: number | undefined){
+    if(selection === undefined || selection >= this._mcss.length || selection < 0){
       throw new Error(`Selection index ${selection} is out of bounds for MCSs of length ${this._mcss.length}`);
     }
     this._activeMCS = selection;
@@ -336,13 +338,17 @@ export class Analysis {
   
   set realizability(realizability: RealizabilityResult | undefined) { this._realizability = realizability; }
   get realizability(): RealizabilityResult | undefined { return this._realizability; }
-  set realizabilitySource(realizabilitySource: RealizabilitySource) { this._realizabilitySource = realizabilitySource; }
-  get realizabilitySource(): RealizabilitySource { return this._realizabilitySource; }
+  set realizabilitySource(realizabilitySource: RealizabilitySource | undefined) { this._realizabilitySource = realizabilitySource; }
+  get realizabilitySource(): RealizabilitySource | undefined { return this._realizabilitySource; }
   
   constructor(readonly abstract: String[], readonly concrete: String[], readonly parent: Component) {
     this._properties = [];
     this._ivcs = [];
     this._mcss = [];
+    this._activeIvc = undefined;
+    this._activeMCS = undefined;
+    this._hasMCS = false;
+    this._must = [];
   }
 }
 
@@ -433,7 +439,7 @@ export function stateIcon(state: State) {
 }
 
 
-export function stateColor(state: State): ThemeColor {
+export function stateColor(state: State): ThemeColor | undefined {
   switch (state) {
     case "pending":
     case "running":
