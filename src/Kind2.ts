@@ -495,8 +495,17 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
     return this.startAnalysis(mainComponent, "realizability");
   }
   // Handle a single update from the LSP about a running MCS analysis.
-  public handleMinimalCutSet(uri, name, values){
-    let mainComponent = this._files.find(f => f.uri === uri).findComponent(name);
+  public handleMinimalCutSet(uri: string, name: string, values: string[]){
+    let mainFile = this._files.find(f => f.uri === uri);
+    if (!mainFile) {
+      console.log("Error: Could not find file " + uri + " in any open file");
+      return;
+    }
+    let mainComponent = mainFile.findComponent(name);
+    if (!mainComponent) { 
+      console.log("Error: Could not find component " + name + " in file " + uri);
+      return;
+    }
     if(!this._runningChecks.has(mainComponent)) return;
     let modifiedComponents: Component[] = [];
     modifiedComponents.push(mainComponent);
