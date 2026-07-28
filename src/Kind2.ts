@@ -722,7 +722,7 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
   }
 
   public cancel(component: Component) {
-    this._runningChecks.get(component).cancel();
+    this._runningChecks.get(component)?.cancel();
   }
 
   private updateAllComponents(modifiedComponents){
