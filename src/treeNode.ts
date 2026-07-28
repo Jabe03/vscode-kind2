@@ -19,7 +19,7 @@ export class File implements File {
     this.line = 1;
     this.parent = undefined;
   }
-  public findComponent(name : String){
+  public findComponent(name: string): Component | undefined {
     return this.components.find(c => c.name === name);
   }
 }
