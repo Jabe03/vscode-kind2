@@ -273,7 +273,7 @@ export class Analysis {
   
   private _activeIvc: number | undefined;
   private _ivcs: Property[][];
-  private _must: Property[];
+  private _must: Property[] | undefined;
   
   private _properties: Property[];
   private _realizability: RealizabilityResult | undefined;
@@ -284,10 +284,16 @@ export class Analysis {
 
   get ivcPropertiesDisplay(): Property[] { 
     if(this._activeIvc === undefined) return [];
-    if(this._activeIvc === -1) return this._must;
+    if(this._activeIvc === -1) {
+      if (this._must === undefined){
+        console.error("Error: must is undefined but is currently selected as the active IVC. This should not happen.");
+        return [];
+      }
+      return  this._must;
+    }
     return this._ivcs[this._activeIvc]; 
   }
-  get must(){ return this._must}
+  get must() : (Property [] | undefined) { return this._must}
   set must(must: Property[]){this._must = must}
   public addIVC(ivc: Property[]){
     if(this._ivcs.length == 0) this._activeIvc = 0;
@@ -350,7 +356,7 @@ export class Analysis {
     this._activeIvc = undefined;
     this._activeMCS = undefined;
     this._hasMCS = false;
-    this._must = [];
+    this._must = undefined;
     this._realizabilitySource = "unknown";
   }
 }
