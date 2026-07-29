@@ -580,7 +580,7 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
   }
 
   // Handle a single update from the LSP about a running check.
-  public async handleCheck(uri: string, name: string, values: any[]) {
+  public async handleCheck(uri: string, name: string, values: string[]) {
     let mainComponent = this.findMainComponent(uri, name);
     if(!this._runningChecks.has(mainComponent)) return;
     console.log("Main component is:" + mainComponent);
