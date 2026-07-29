@@ -19,8 +19,18 @@ export class File implements File {
     this.line = 1;
     this.parent = undefined;
   }
-  public findComponent(name: string): Component | undefined {
-    return this.components.find(c => c.name === name);
+  /**
+   * Finds a component by name in this file.
+   * If useGenericTypeInName is true, it will match the full
+   * name including generic type parameters (if present).
+   * If false, it will match only the base name.
+   */
+  public findComponent(name: string, useGenericTypeInName: boolean = false): Component | undefined {
+    if (useGenericTypeInName) {
+      return this.components.find(c => c.name === name);
+    } else {
+      return this.components.find(c => c.name === name.split("<")[0]);
+    }
   }
 }
 

@@ -474,15 +474,20 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
         this.updateAllComponents([]);
     });
   }
+
+  // This method is used to find a component by name in a set of files. 
+  // It is used when the LSP sends an update about a running analysis, 
+  // and we need to find the component that the update is about.
   private findComponentByName(name: string, fileSet: File[]): Component | undefined {
     let component: Component | undefined = undefined;
     let i = 0;
     while (component === undefined && i < fileSet.length) {
-      component = fileSet[i].components.find(c => c.name === name.split("<")[0]);
+      component = fileSet[i].findComponent(name);
       ++i;
     }
     return component;
   }
+  // This method is used to find a component by name in a specified file (uri).
   private findMainComponent(uri: string, name: string): Component {
     let mainFile = this._files.find(f => f.uri === uri);
     if (!mainFile) {
