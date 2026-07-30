@@ -22,6 +22,7 @@
     "onLanguage:lustre"
   ],
   "main": "out/main",
+  "browser": "out/web/main",
   "contributes": {
     "languages": [
       {
@@ -642,10 +643,14 @@
     ]
   },
   "scripts": {
-    "vscode:prepublish": "npm run esbuild-base -- --minify",
+    "vscode:prepublish": "npm run esbuild-base -- --minify && npm run esbuild-web -- --minify",
     "esbuild-base": "esbuild src/extension.ts --bundle --outfile=out/main.js --external:vscode --format=cjs --platform=node",
+    "esbuild-web": "esbuild src/web/extension.ts --bundle --outfile=out/web/main.js --external:vscode --format=cjs --platform=browser",
     "esbuild": "npm run esbuild-base -- --sourcemap",
-    "esbuild-watch": "npm run esbuild-base -- --sourcemap --watch"
+    "esbuild-watch": "npm run esbuild-base -- --sourcemap --watch",
+    "esbuild-web-watch": "npm run esbuild-web -- --sourcemap --watch",
+    "web:run": "npm run esbuild-web && npx vscode-test-web --browser chromium --extensionDevelopmentPath=. --open-devtools .",
+    "web:run:headless": "npm run esbuild-web && npx vscode-test-web --browser chromium --extensionDevelopmentPath=. --headless ."
   },
   "dependencies": {
     "vscode-languageclient": "^6.1.4"
@@ -657,8 +662,9 @@
     "@types/vscode": "^1.67.0",
     "@typescript-eslint/parser": "^5.30.0",
     "@vscode/test-electron": "^2.1.5",
+    "@vscode/test-web": "^0.0.81",
     "@vscode/vsce": "^3.4.2",
-    "esbuild": "^0.25.5",
+    "esbuild": "^0.25.12",
     "eslint": "^8.18.0",
     "js-yaml": "^4.1.0",
     "mocha": "^11.5.0",
