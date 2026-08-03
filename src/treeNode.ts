@@ -19,8 +19,18 @@ export class File implements File {
     this.line = 1;
     this.parent = undefined;
   }
-  public findComponent(name: string): Component | undefined {
-    return this.components.find(c => c.name === name);
+  /**
+   * Finds a component by name in this file.
+   * If useGenericTypeInName is true, it will match the full
+   * name including generic type parameters (if present).
+   * If false, it will match only the base name.
+   */
+  public findComponent(name: string, useGenericTypeInName: boolean = false): Component | undefined {
+    if (useGenericTypeInName) {
+      return this.components.find(c => c.name === name);
+    } else {
+      return this.components.find(c => c.name === name.split("<")[0]);
+    }
   }
 }
 
@@ -34,15 +44,16 @@ export class Container{
   // you can use the "show source" button in the TreeView. Same for uri.
   // It is impossible for the extension in its current state to ever access
   // these variables, but it supresses the type checker errors
-  line: number;
-  uri: string;
-
+  line: number = -1;
+  uri: string = "undefined";
+  value: number | undefined;
   children: TreeNode[];
   constructor(readonly parent: TreeNode, children: TreeNode[], readonly name: string, readonly tag: string, 
-    readonly value?: number, line?: number, uri?: string) {
+    value?: number, line?: number, uri? : string){
+    this.line = line ?? this.line;
+    this.uri = uri ?? this.uri;
     this.children = children;
-    this.line = line;
-    this.uri = uri;
+    this.value = value;
   }
   private get parentAnalysis(): Analysis{
      
@@ -187,7 +198,7 @@ export class Component {
     let failedProperties = new Set<string>();
     let unknownProperties = new Set<string>();
     let erroredProperties = new Set<string>();
-    var ret = [];
+    var ret : State[] = [];
     for (const analysis of this._analyses) {
       for (const property of analysis.properties) {
         if (property.state === "passed" || property.state === "reachable") { passedProperties.add(property.name); }
@@ -251,28 +262,31 @@ export class Component {
     this._state = ["pending"];
     this._analyses = [];
     this._imported = importedComp === "true";
+    this._kind = compKind as component_kind;
     this.kind = compKind;
     this._hasRefType = hasRefinementType;
+    this._hasRunningAnalysis = false;
+
   }
 }
 
-export type RealizabilitySource = "inputs" | "contract" | "imported node" | "type"
+export type RealizabilitySource = "inputs" | "contract" | "imported node" | "type" | "unknown";
 
 // TODO Probably should make a hierarchy of Analysis with subclasses:
 //  MCSAnalysis and IVCAnalysis. Potentially merge MCS and IVC functionality since they are mostly the same
 export class Analysis {
   
   
-  private _activeMCS: number;
+  private _activeMCS: number | undefined;
   private _mcss: Property[][];
   private _hasMCS: boolean;
   
-  private _activeIvc: number;
+  private _activeIvc: number | undefined;
   private _ivcs: Property[][];
-  private _must: Property[];
+  private _must: Property[] | undefined;
   
   private _properties: Property[];
-  private _realizability: RealizabilityResult;
+  private _realizability: RealizabilityResult | undefined;
   private _realizabilitySource: RealizabilitySource;
   set properties(properties: Property[]) { this._properties = properties; }
   get properties(): Property[] { return this._properties; }
@@ -280,17 +294,23 @@ export class Analysis {
 
   get ivcPropertiesDisplay(): Property[] { 
     if(this._activeIvc === undefined) return [];
-    if(this._activeIvc === -1) return this._must;
+    if(this._activeIvc === -1) {
+      if (this._must === undefined){
+        console.error("Error: must is undefined but is currently selected as the active IVC. This should not happen.");
+        return [];
+      }
+      return  this._must;
+    }
     return this._ivcs[this._activeIvc]; 
   }
-  get must(){ return this._must}
+  get must() : (Property [] | undefined) { return this._must}
   set must(must: Property[]){this._must = must}
   public addIVC(ivc: Property[]){
     if(this._ivcs.length == 0) this._activeIvc = 0;
     this._ivcs.push(ivc);
   }
-  public setActiveIVC(selection: number){
-    if(selection >= this._ivcs.length || selection < -1){
+  public setActiveIVC(selection: number | undefined){
+    if(selection === undefined || selection >= this._ivcs.length || selection < -1){
       throw new Error(`Selection index ${selection} is out of bounds for IVCs of length ${this._ivcs.length}`);
     }
     this._activeIvc = selection;
@@ -327,15 +347,15 @@ export class Analysis {
     if(this._activeMCS === undefined) return [];
     return this._mcss[this._activeMCS]; 
   }
-  public setActiveMCS(selection: number){
-    if(selection >= this._mcss.length || selection < 0){
+  public setActiveMCS(selection: number | undefined){
+    if(selection === undefined || selection >= this._mcss.length || selection < 0){
       throw new Error(`Selection index ${selection} is out of bounds for MCSs of length ${this._mcss.length}`);
     }
     this._activeMCS = selection;
   }
   
-  set realizability(realizability: RealizabilityResult) { this._realizability = realizability; }
-  get realizability(): RealizabilityResult { return this._realizability; }
+  set realizability(realizability: RealizabilityResult | undefined) { this._realizability = realizability; }
+  get realizability(): RealizabilityResult | undefined { return this._realizability; }
   set realizabilitySource(realizabilitySource: RealizabilitySource) { this._realizabilitySource = realizabilitySource; }
   get realizabilitySource(): RealizabilitySource { return this._realizabilitySource; }
   
@@ -343,6 +363,11 @@ export class Analysis {
     this._properties = [];
     this._ivcs = [];
     this._mcss = [];
+    this._activeIvc = undefined;
+    this._activeMCS = undefined;
+    this._hasMCS = false;
+    this._must = undefined;
+    this._realizabilitySource = "unknown";
   }
 }
 
@@ -433,7 +458,7 @@ export function stateIcon(state: State) {
 }
 
 
-export function stateColor(state: State): ThemeColor {
+export function stateColor(state: State): ThemeColor | undefined {
   switch (state) {
     case "pending":
     case "running":

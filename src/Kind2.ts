@@ -103,14 +103,11 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
         this._treeDataChanged.fire(element);
 
   }
-  
-  public getTreeItem(element: TreeNode): TreeItem | Thenable<TreeItem> {
-    let item: TreeItem;
-    if (element instanceof File) {
-      item = new TreeItem(element.name, element.components.length === 0 ? TreeItemCollapsibleState.None : TreeItemCollapsibleState.Expanded);
-    }
-    else if (element instanceof Component) {
-      item = new TreeItem(element.name, element.analyses.length === 0 ? TreeItemCollapsibleState.None : TreeItemCollapsibleState.Expanded);
+  private makeFileTreeItem(element: File): TreeItem {
+    return new TreeItem(element.name, element.components.length === 0 ? TreeItemCollapsibleState.None : TreeItemCollapsibleState.Expanded);
+  }
+  private makeComponentTreeItem(element: Component): TreeItem {
+    let item = new TreeItem(element.name, element.analyses.length === 0 ? TreeItemCollapsibleState.None : TreeItemCollapsibleState.Expanded);
       item.contextValue = element.state.length > 0 && element.state[0] === "running" ? "running" : "component";
       item.command = {
           command: "kind2/showSource",
@@ -124,36 +121,54 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
       else {
         item.iconPath = Uri.file(path.join(this._context.extensionPath, statePath(element.state[0])));
       }
-    }
-    else if (element instanceof Analysis) {
-      if (element.realizability === undefined) {
+      return item;
+  }
+  private makeAnalysisTreeItem(element: Analysis): TreeItem {
+    let item: TreeItem;
+    if (element.realizability === undefined) {
         let label = "Abstract: " + (element.abstract.length == 0 ? "none" : "[" + element.abstract.toString() + "]");
         label += " - Concrete: " + (element.concrete.length == 0 ? "none" : "[" + element.concrete.toString() + "]");
         let hasContents: boolean = element.properties.length !== 0 || element.hasIVC || element.hasMCS;
         item = new TreeItem(label,  hasContents ? TreeItemCollapsibleState.Expanded : TreeItemCollapsibleState.None);
         item.contextValue = "analysis";
-      } 
-      else if( element.realizabilitySource === "contract") {
-          if (element.realizability === "realizable") {
-            item = new TreeItem(element.realizabilitySource, TreeItemCollapsibleState.None);
-            item.iconPath = Uri.file(path.join(this._context.extensionPath, statePath("passed")));
-          }
-          else if (element.realizability === "unrealizable") {
-            item = new TreeItem(element.realizabilitySource + ": conflicting set", TreeItemCollapsibleState.Collapsed);
-            item.iconPath = Uri.file(path.join(this._context.extensionPath, statePath("failed")));
-            item.contextValue = "hasDeadlock";
-
-          }
+        return item;
+    } 
+    else if(element.realizabilitySource === "contract") {
+      switch (element.realizability) {
+        case "realizable":
+          item = new TreeItem(element.realizabilitySource, TreeItemCollapsibleState.None);
+          item.iconPath = Uri.file(path.join(this._context.extensionPath, statePath("passed")));
+          return item;
+        case "unrealizable":
+          item = new TreeItem(element.realizabilitySource + ": conflicting set", TreeItemCollapsibleState.Collapsed);
+          item.iconPath = Uri.file(path.join(this._context.extensionPath, statePath("failed")));
+          item.contextValue = "hasDeadlock";
+          return item;
       }
-      else if (element.realizability === "realizable") {
-        item = new TreeItem(element.realizabilitySource, TreeItemCollapsibleState.None);
-        item.iconPath = Uri.file(path.join(this._context.extensionPath, statePath("passed")));
-      }
-      else {
-        item = new TreeItem(element.realizabilitySource, TreeItemCollapsibleState.None);
-        item.iconPath = Uri.file(path.join(this._context.extensionPath, statePath("failed")));
-        item.contextValue = "hasDeadlock";
-      }
+    }
+    else if (element.realizability === "realizable") {
+      
+      item = new TreeItem(element.realizabilitySource, TreeItemCollapsibleState.None);
+      item.iconPath = Uri.file(path.join(this._context.extensionPath, statePath("passed")));
+      return item;
+    }
+    else {
+      item = new TreeItem(element.realizabilitySource, TreeItemCollapsibleState.None);
+      item.iconPath = Uri.file(path.join(this._context.extensionPath, statePath("failed")));
+      item.contextValue = "hasDeadlock";
+      return item;
+    }
+  }
+  public getTreeItem(element: TreeNode): TreeItem | Thenable<TreeItem> {
+    let item: TreeItem;
+    if (element instanceof File) {
+      return this.makeFileTreeItem(element);
+    }
+    else if (element instanceof Component) {
+      return this.makeComponentTreeItem(element);
+    }
+    else if (element instanceof Analysis) {
+      return this.makeAnalysisTreeItem(element);
     }
     else if(element instanceof Property) {
       item = new TreeItem(element.name, TreeItemCollapsibleState.None);
@@ -172,7 +187,12 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
         item.contextValue = "hasTrace";
       }
       item.iconPath = Uri.file(path.join(this._context.extensionPath, statePath(element.state)));
-    } else if(element instanceof Container){
+      return item;
+    } else {
+      // Item must be a container (IVC or MCS)
+      if (!(element instanceof Container)){
+        throw new Error("TreeNode is not a File, Component, Analysis, Property, or Container");
+      }
       item = new TreeItem(element.name, TreeItemCollapsibleState.Collapsed);
       if (element.tag === "ivc_button"){
         item.command = {
@@ -191,8 +211,8 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
         item.collapsibleState = TreeItemCollapsibleState.None;
         item.iconPath = element.icon;
       }
+      return item;
     }
-    return item;
   }
 
   public getChildren(element?: TreeNode): ProviderResult<TreeNode[]> {
@@ -289,14 +309,21 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
         }
         for(const ivcProperty of component.ivcProperties) {
           if (decorations.has(ivcProperty.uri) && (ivcProperty.line != component.line) && (ivcProperty.line != component.contractLine)) {
-            let decorationOptions: DecorationOptions = { range: new Range(new Position(ivcProperty.line, ivcProperty.startCol), (new Position(ivcProperty.line, 100))), hoverMessage: `${ivcProperty.state}` };
-            decorations.get(ivcProperty.uri)?.get(ivcProperty.state)?.push(decorationOptions);          }
+            let col: number = ivcProperty.startCol === undefined ? 0 : ivcProperty.startCol;
+            if (!ivcProperty.startCol && ivcProperty.startCol !== 0) { console.log("Undefined startCol for IVC property: " + ivcProperty.name); };
+            
+            let decorationOptions: DecorationOptions = { range: new Range(new Position(ivcProperty.line, col), (new Position(ivcProperty.line, 100))), hoverMessage: `${ivcProperty.state}` };
+            decorations.get(ivcProperty.uri)?.get(ivcProperty.state)?.push(decorationOptions);
+          }
         }
         for(const mcsProperty of component.mcsProperties) {
           if (decorations.has(mcsProperty.uri) && (mcsProperty.line != component.line) && (mcsProperty.line != component.contractLine)) {
             let msg: string = mcsProperty.state === "mcs property" ? "Cut property: " + mcsProperty.name : mcsProperty.name;
-            let decorationOptions: DecorationOptions = { range: new Range(new Position(mcsProperty.line, mcsProperty.startCol), (new Position(mcsProperty.line, 100))), hoverMessage: `${msg}` };
-            decorations.get(mcsProperty.uri)?.get(mcsProperty.state)?.push(decorationOptions);          }
+            let col: number = mcsProperty.startCol === undefined ? 0 : mcsProperty.startCol;
+            if (!mcsProperty.startCol && mcsProperty.startCol !== 0) { console.log("Undefined startCol for MCS property: " + mcsProperty.name); };
+            let decorationOptions: DecorationOptions = { range: new Range(new Position(mcsProperty.line, col), (new Position(mcsProperty.line, 100))), hoverMessage: `${msg}` };
+            decorations.get(mcsProperty.uri)?.get(mcsProperty.state)?.push(decorationOptions);
+          }
         }
         const keys = Array.from(conflictingSet.keys()).map(k => `*${k}*`);
         for(const [propertyName,propertyDecorationOptions] of conflictingSet.entries()) {
@@ -365,8 +392,12 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
       mainFile.components = []
       newFiles.push(mainFile);
     }
+    const fileSet = this._fileMap.get(uri);
+    if (!fileSet) {
+      throw new Error("File map does not contain main file: " + uri);
+    }
     for (let component of components) {
-      this._fileMap.get(uri).add(component.file);
+      fileSet.add(component.file);
       // Only add components if this is the first time we see their files.
       if (this._files.find(f => f.uri === component.file) === undefined) {
         let file = newFiles.find(f => f.uri === component.file);
@@ -443,16 +474,31 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
         this.updateAllComponents([]);
     });
   }
+
+  // This method is used to find a component by name in a set of files. 
+  // It is used when the LSP sends an update about a running analysis, 
+  // and we need to find the component that the update is about.
   private findComponentByName(name: string, fileSet: File[]): Component | undefined {
     let component: Component | undefined = undefined;
     let i = 0;
     while (component === undefined && i < fileSet.length) {
-      component = fileSet[i].components.find(c => c.name === name.split("<")[0]);
+      component = fileSet[i].findComponent(name);
       ++i;
     }
     return component;
   }
-
+  // This method is used to find a component by name in a specified file (uri).
+  private findMainComponent(uri: string, name: string): Component {
+    let mainFile = this._files.find(f => f.uri === uri);
+    if (!mainFile) {
+      throw new Error("Could not find file " + uri);
+    }
+    let mainComponent = mainFile.findComponent(name);
+    if (!mainComponent) {
+      throw new Error("Could not find component " + name + " in file " + uri);
+    }
+    return mainComponent;
+  }
   public async minimalCutSet(mainComponent: Component): Promise<void> {
     return this.startAnalysis(mainComponent, "minimalCutSet");
   }
@@ -465,8 +511,8 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
     return this.startAnalysis(mainComponent, "realizability");
   }
   // Handle a single update from the LSP about a running MCS analysis.
-  public handleMinimalCutSet(uri, name, values){
-    let mainComponent = this._files.find(f => f.uri === uri).findComponent(name);
+  public handleMinimalCutSet(uri: string, name: string, values: string[]){
+    let mainComponent = this.findMainComponent(uri, name);
     if(!this._runningChecks.has(mainComponent)) return;
     let modifiedComponents: Component[] = [];
     modifiedComponents.push(mainComponent);
@@ -531,16 +577,16 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
     this.updateAllComponents(modifiedComponents);
   }
 
-  public minimalCutSetComplete(uri, name){
-     let mainComponent = this._files.find(f => f.uri === uri).findComponent(name);
+  public minimalCutSetComplete(uri: string, name: string){
+    let mainComponent = this.findMainComponent(uri, name);
     mainComponent.hasRunningAnalysis = false;
     this._runningChecks.delete(mainComponent);
     this.updateAllComponents([mainComponent]);
   }
 
   // Handle a single update from the LSP about a running check.
-  public async handleCheck(uri, name, values) {
-    let mainComponent = this._files.find(f => f.uri === uri).findComponent(name);
+  public async handleCheck(uri: string, name: string, values: string[]) {
+    let mainComponent = this.findMainComponent(uri, name);
     if(!this._runningChecks.has(mainComponent)) return;
     console.log("Main component is:" + mainComponent);
     let results: any[] = values.map(s => JSON.parse(s));
@@ -552,8 +598,15 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
       previousAnalyses.set(JSON.stringify({ abstract: analysis.abstract, concrete: analysis.concrete }), analysis);
     }
     let files: File[] = [];
-    for (const uri of this._fileMap.get(mainComponent.uri)) {
+    let fileSet = this._fileMap.get(uri);
+    if (!fileSet) {
+      throw new Error("File map does not contain main file: " + uri);
+    }
+    for (const uri of fileSet) {
       let file = this._files.find(f => f.uri === uri);
+      if (!file) {
+        throw new Error("Could not find file " + uri);
+      }
       files.push(file);
     }
       for (const nodeResult of results) {
@@ -645,19 +698,20 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
       this.updateAllComponents(modifiedComponents);
   }
   // Finish a running check
-  public async checkComplete(uri, name){
-    let mainComponent = this._files.find(f => f.uri === uri).findComponent(name);
+  public async checkComplete(uri: string, name: string){
+    let mainComponent = this.findMainComponent(uri, name);
     mainComponent.hasRunningAnalysis = false;
     this._runningChecks.delete(mainComponent);
     if (mainComponent.analyses.length == 0) {
       mainComponent.state = ["passed"];
     }
     this.updateAllComponents([mainComponent]);
+    return;
   }
 
   // Handle a single update from the LSP about a running realizability analysis.
-  public handleRealizability(uri, name, values){
-    let mainComponent = this._files.find(f => f.uri === uri).findComponent(name);
+  public handleRealizability(uri: string, name: string, values: string[]){
+    let mainComponent = this.findMainComponent(uri, name);
     if(!this._runningChecks.has(mainComponent)) return;
     let modifiedComponents: Component[] = [];
     modifiedComponents.push(mainComponent);
@@ -676,7 +730,7 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
             analysis.realizabilitySource = "contract"
             //begin finding conflicting set
             let conflictingSet: Property[] = [];
-            analysisResult.conflictingSet[0]?.elements?.forEach(element => {
+            analysisResult.conflictingSet[0]?.elements?.forEach((element: any) => {
               let property = new Property(element.name, element.line - 1, component.uri, analysis)
               conflictingSet.push(property);
             });
@@ -703,7 +757,7 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
           component.analyses.push(analysis);
         }
         if (component.analyses.length == 0) { 
-          component.state = "passed";
+          component.state = ["passed"];
         }
         modifiedComponents.push(component);
       }
@@ -713,8 +767,8 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
       this.updateAllComponents(modifiedComponents);
   }
 
-  public realizabilityComplete(uri, name){
-    let mainComponent = this._files.find(f => f.uri === uri).findComponent(name);
+  public realizabilityComplete(uri: string, name: string){
+    let mainComponent = this.findMainComponent(uri, name);
       if (mainComponent.state.length > 0 && mainComponent.state[0] === "running") {
       mainComponent.state = ["passed"];
     }
@@ -725,7 +779,7 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
     this._runningChecks.get(component)?.cancel();
   }
 
-  private updateAllComponents(modifiedComponents){
+  private updateAllComponents(modifiedComponents: Component[]): void {
     for (const component of modifiedComponents) {
       this._treeDataChanged.fire(component);
     }
@@ -734,7 +788,7 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
   }
 
   public async interpret(uri: string, main: string, json: string): Promise<void> {
-    await this._client.sendRequest("kind2/interpret", [uri, main, json]).then(async (interp: string) => {
+    await this._client.sendRequest<string>("kind2/interpret", [uri, main, json]).then(async (interp: string) => {
       WebPanel.createOrShow(this._context.extensionPath);
       await WebPanel.currentPanel?.sendMessage({ uri: uri, main: main, json: interp, type: "interp" });
     }).catch(reason => {
@@ -743,7 +797,7 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
   }
 
   public async raw(component: Component): Promise<void> {
-    await this._client.sendRequest("kind2/getKind2Cmd", [component.uri, component.name]).then(async (cmd: string[]) => {
+    await this._client.sendRequest<string[]>("kind2/getKind2Cmd", [component.uri, component.name]).then(async (cmd: string[]) => {
       cmd = cmd.map(o => o.replace("%20", " "));
       await tasks.executeTask(new Task({ type: "kind2" }, TaskScope.Workspace, component.name, "Kind 2", new ShellExecution(cmd[0], cmd.slice(1))));
     }).catch(reason => {
@@ -756,7 +810,7 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
   }
 
   public async counterExample(property: Property): Promise<void> {
-    await this._client.sendRequest("kind2/counterExample", [property.parent.parent.uri, property.parent.parent.name,
+    await this._client.sendRequest<string>("kind2/counterExample", [property.parent.parent.uri, property.parent.parent.name,
     property.parent.abstract, property.parent.concrete, property.name]).then((ce: string) => {
       WebPanel.createOrShow(this._context.extensionPath);
       WebPanel.currentPanel?.sendMessage({ uri: property.parent.parent.uri, main: property.parent.parent.name, json: ce, type: "cex" });
@@ -778,7 +832,7 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
     else if (analysis.realizabilitySource === "type") {
       context = "type"
     }
-    await this._client.sendRequest("kind2/deadlock", [analysis.parent.uri, name, context]).then((dl: string) => {
+    await this._client.sendRequest<string>("kind2/deadlock", [analysis.parent.uri, name, context]).then((dl: string) => {
       WebPanel.createOrShow(this._context.extensionPath);
       WebPanel.currentPanel?.sendMessage({ uri: analysis.parent.uri, main: analysis.parent.name, json: dl, type : "dl" });
     }).catch(reason => {
