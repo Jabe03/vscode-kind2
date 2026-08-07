@@ -27,7 +27,7 @@ export async function activate(context: vscode.ExtensionContext) {
   };
 
   registerCommand('angular-webview.start', () => {
-    WebPanel.createOrShow(context.extensionPath);
+    WebPanel.createOrShow(context.extensionUri);
   });
 
   // The server is implemented in node

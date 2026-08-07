@@ -12,7 +12,7 @@ import {
 } from 'vscode-languageclient';
 import { Kind2 } from '../Kind2';
 import { Component, Property, TreeNode, Analysis, Container } from '../treeNode';
-// import { WebPanel } from '../webviewPanel';
+import { WebPanel } from '../webviewPanel';
 import { Kind2SettingsProvider, SelectorNode, SettingNode} from '../Kind2SettingsProvider';
 import {
   createKind2LanguageClient
@@ -50,41 +50,9 @@ export async function activate(context: vscode.ExtensionContext) {
 
 // Web panel is not yet compatible with web version of Kind 2, 
 // so this command is commented out for now
-//   registerCommand('angular-webview.start', () => {
-//     WebPanel.createOrShow(context.extensionPath);
-//   });
-
-  // The server is implemented in node
-//   let serverCmd = context.asAbsolutePath(
-//     path.join('kind2-language-server', 'bin', 'kind2-language-server')
-//   );
-
-  // If the extension is launched in debug mode then the debug server options are used
-  // Otherwise the run options are used
-//   let serverOptions: ServerOptions = {
-//     run: { command: serverCmd },
-//     debug: { command: serverCmd }
-//   };
-
-  // Options to control the language client
-//   let clientOptions: LanguageClientOptions = {
-//     // Register the server for plain text documents
-//     documentSelector: [{ scheme: 'file', language: 'lustre' }],
-//     synchronize: {
-//       // Notify the server about file changes to '.clientrc files contained in the workspace
-//       fileEvents: vscode.workspace.createFileSystemWatcher('**/.clientrc')
-//     }
-//   };
-
-  // Create the language client and start the client.
-  // TODO Implement Language Client for web version of Kind 2
-  // client = new LanguageClient(
-  //   'vscode-kind2',
-  //   'Kind 2',
-  //   serverOptions,
-  //   // connectToTCPServer(),
-  //   clientOptions
-  // );
+  registerCommand('angular-webview.start', () => {
+    WebPanel.createOrShow(context.extensionUri);
+  });
 
   kind2 = new Kind2(context, client);
 

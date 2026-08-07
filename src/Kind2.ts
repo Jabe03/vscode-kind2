@@ -4,12 +4,12 @@
  * Licensed under the MIT License. See LICENSE in the project root for license information.
  */
 
-import * as path from "path-browserify";
+
 import { CancellationToken, CancellationTokenSource, CodeLens, CodeLensProvider, DecorationOptions, Event, EventEmitter, ExtensionContext, Position, ProviderResult, Range, ShellExecution, Task, tasks, TaskScope, TextDocument, TextEditorDecorationType, TreeDataProvider, TreeItem, TreeItemCollapsibleState, TreeView, Uri, window, MarkdownString, workspace } from "vscode";
 import { BaseLanguageClient } from "vscode-languageclient";
 import { Analysis, Component, File, Property, State, statePath, TreeNode, stateColor, Container } from "./treeNode";
 // Web panel is not yet compatible with web version of Kind 2, so this import is commented out for now
-// import { WebPanel } from "./webviewPanel";
+import { WebPanel } from "./webviewPanel";
 
 type AnalysisType = "check" | "minimalCutSet" | "realizability"; 
 
@@ -21,6 +21,11 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
   private readonly _codeLensesChanged: EventEmitter<void>;
   private readonly _decorationTypeMap: Map<State, TextEditorDecorationType>;
 
+  private getStateIconUri(state: State): Uri {
+    const iconPath = statePath(state).split("/");
+    return Uri.joinPath(this._context.extensionUri, ...iconPath);
+  }
+
   constructor(private _context: ExtensionContext, private _client: BaseLanguageClient) {
     this._fileMap = new Map<String, Set<String>>();
     this._files = [];
@@ -30,27 +35,27 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
     this.onDidChangeTreeData = this._treeDataChanged.event;
     this.onDidChangeCodeLenses = this._codeLensesChanged.event;
     this._decorationTypeMap = new Map<State, TextEditorDecorationType>([
-      [ "pending",                window.createTextEditorDecorationType({ gutterIconPath: this._context.asAbsolutePath(statePath("pending")),                backgroundColor: stateColor("pending") }) ],
-      [ "running",                window.createTextEditorDecorationType({ gutterIconPath: this._context.asAbsolutePath(statePath("running")),                backgroundColor: stateColor("running") }) ],
-      [ "passed",                 window.createTextEditorDecorationType({ gutterIconPath: this._context.asAbsolutePath(statePath("passed")),                 backgroundColor: stateColor("passed") }) ],
-      [ "reachable",              window.createTextEditorDecorationType({ gutterIconPath: this._context.asAbsolutePath(statePath("reachable")),              backgroundColor: stateColor("reachable") }) ],
-      [ "conflicting",            window.createTextEditorDecorationType({ gutterIconPath: this._context.asAbsolutePath(statePath("conflicting")),            backgroundColor: stateColor("conflicting") }) ],
-      [ "failed",                 window.createTextEditorDecorationType({ gutterIconPath: this._context.asAbsolutePath(statePath("failed")),                 backgroundColor: stateColor("failed") }) ],
-      [ "unreachable",            window.createTextEditorDecorationType({ gutterIconPath: this._context.asAbsolutePath(statePath("unreachable")),            backgroundColor: stateColor("unreachable") }) ],
-      [ "stopped",                window.createTextEditorDecorationType({ gutterIconPath: this._context.asAbsolutePath(statePath("stopped")),                backgroundColor: stateColor("stopped") }) ],
-      [ "unknown",                window.createTextEditorDecorationType({ gutterIconPath: this._context.asAbsolutePath(statePath("unknown")),                backgroundColor: stateColor("unknown") }) ],
-      [ "errored",                window.createTextEditorDecorationType({ gutterIconPath: this._context.asAbsolutePath(statePath("errored")),                backgroundColor: stateColor("errored") }) ],
-      [ "realizable",             window.createTextEditorDecorationType({ gutterIconPath: this._context.asAbsolutePath(statePath("realizable")),             backgroundColor: stateColor("realizable") }) ],
-      [ "unrealizable",           window.createTextEditorDecorationType({ gutterIconPath: this._context.asAbsolutePath(statePath("unrealizable")),           backgroundColor: stateColor("unrealizable") }) ],
-      [ "contract realizable",    window.createTextEditorDecorationType({ gutterIconPath: this._context.asAbsolutePath(statePath("contract realizable")),    backgroundColor: stateColor("contract realizable") }) ],
-      [ "contract unrealizable",  window.createTextEditorDecorationType({ gutterIconPath: this._context.asAbsolutePath(statePath("contract unrealizable")),  backgroundColor: stateColor("contract unrealizable") }) ],
-      [ "type realizable",        window.createTextEditorDecorationType({ gutterIconPath: this._context.asAbsolutePath(statePath("type realizable")),        backgroundColor: stateColor("type realizable") }) ],
-      [ "type unrealizable",      window.createTextEditorDecorationType({ gutterIconPath: this._context.asAbsolutePath(statePath("type unrealizable")),      backgroundColor: stateColor("type unrealizable") }) ],
-      [ "inputs realizable",      window.createTextEditorDecorationType({ gutterIconPath: this._context.asAbsolutePath(statePath("inputs realizable")),      backgroundColor: stateColor("inputs realizable") }) ],
-      [ "inputs unrealizable",    window.createTextEditorDecorationType({ gutterIconPath: this._context.asAbsolutePath(statePath("inputs unrealizable")),    backgroundColor: stateColor("inputs unrealizable") }) ],
-      [ "ivc",                    window.createTextEditorDecorationType({ gutterIconPath: this._context.asAbsolutePath(statePath("ivc")),                                                                                     backgroundColor: stateColor("ivc") }) ],
-      [ "mcs property",           window.createTextEditorDecorationType({ gutterIconPath: this._context.asAbsolutePath(statePath("mcs property")),                                                                                     backgroundColor: stateColor("mcs property") }) ],
-      [ "mcs cut",                window.createTextEditorDecorationType({ gutterIconPath: this._context.asAbsolutePath(statePath("mcs cut")),                                                                                      backgroundColor: stateColor("mcs cut") }) ],
+      [ "pending",                window.createTextEditorDecorationType({ gutterIconPath: this.getStateIconUri("pending"),                backgroundColor: stateColor("pending") }) ],
+      [ "running",                window.createTextEditorDecorationType({ gutterIconPath: this.getStateIconUri("running"),                backgroundColor: stateColor("running") }) ],
+      [ "passed",                 window.createTextEditorDecorationType({ gutterIconPath: this.getStateIconUri("passed"),                 backgroundColor: stateColor("passed") }) ],
+      [ "reachable",              window.createTextEditorDecorationType({ gutterIconPath: this.getStateIconUri("reachable"),              backgroundColor: stateColor("reachable") }) ],
+      [ "conflicting",            window.createTextEditorDecorationType({ gutterIconPath: this.getStateIconUri("conflicting"),            backgroundColor: stateColor("conflicting") }) ],
+      [ "failed",                 window.createTextEditorDecorationType({ gutterIconPath: this.getStateIconUri("failed"),                 backgroundColor: stateColor("failed") }) ],
+      [ "unreachable",            window.createTextEditorDecorationType({ gutterIconPath: this.getStateIconUri("unreachable"),            backgroundColor: stateColor("unreachable") }) ],
+      [ "stopped",                window.createTextEditorDecorationType({ gutterIconPath: this.getStateIconUri("stopped"),                backgroundColor: stateColor("stopped") }) ],
+      [ "unknown",                window.createTextEditorDecorationType({ gutterIconPath: this.getStateIconUri("unknown"),                backgroundColor: stateColor("unknown") }) ],
+      [ "errored",                window.createTextEditorDecorationType({ gutterIconPath: this.getStateIconUri("errored"),                backgroundColor: stateColor("errored") }) ],
+      [ "realizable",             window.createTextEditorDecorationType({ gutterIconPath: this.getStateIconUri("realizable"),             backgroundColor: stateColor("realizable") }) ],
+      [ "unrealizable",           window.createTextEditorDecorationType({ gutterIconPath: this.getStateIconUri("unrealizable"),           backgroundColor: stateColor("unrealizable") }) ],
+      [ "contract realizable",    window.createTextEditorDecorationType({ gutterIconPath: this.getStateIconUri("contract realizable"),    backgroundColor: stateColor("contract realizable") }) ],
+      [ "contract unrealizable",  window.createTextEditorDecorationType({ gutterIconPath: this.getStateIconUri("contract unrealizable"),  backgroundColor: stateColor("contract unrealizable") }) ],
+      [ "type realizable",        window.createTextEditorDecorationType({ gutterIconPath: this.getStateIconUri("type realizable"),        backgroundColor: stateColor("type realizable") }) ],
+      [ "type unrealizable",      window.createTextEditorDecorationType({ gutterIconPath: this.getStateIconUri("type unrealizable"),      backgroundColor: stateColor("type unrealizable") }) ],
+      [ "inputs realizable",      window.createTextEditorDecorationType({ gutterIconPath: this.getStateIconUri("inputs realizable"),      backgroundColor: stateColor("inputs realizable") }) ],
+      [ "inputs unrealizable",    window.createTextEditorDecorationType({ gutterIconPath: this.getStateIconUri("inputs unrealizable"),    backgroundColor: stateColor("inputs unrealizable") }) ],
+      [ "ivc",                    window.createTextEditorDecorationType({ gutterIconPath: this.getStateIconUri("ivc"),                     backgroundColor: stateColor("ivc") }) ],
+      [ "mcs property",           window.createTextEditorDecorationType({ gutterIconPath: this.getStateIconUri("mcs property"),            backgroundColor: stateColor("mcs property") }) ],
+      [ "mcs cut",                window.createTextEditorDecorationType({ gutterIconPath: this.getStateIconUri("mcs cut"),                 backgroundColor: stateColor("mcs cut") }) ],
     ]);
   }
 
@@ -123,10 +128,10 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
         };
       
       if (element.containsUnrealizable()) { // At least one unrealizable result causes component's icon to be an X
-        item.iconPath = Uri.file(path.join(this._context.extensionPath, statePath("unrealizable")));
+        item.iconPath = this.getStateIconUri("unrealizable");
       }
       else {
-        item.iconPath = Uri.file(path.join(this._context.extensionPath, statePath(element.state[0])));
+        item.iconPath = this.getStateIconUri(element.state[0]);
       }
       return item;
   }
@@ -144,11 +149,11 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
       switch (element.realizability) {
         case "realizable":
           item = new TreeItem(element.realizabilitySource, TreeItemCollapsibleState.None);
-          item.iconPath = Uri.file(path.join(this._context.extensionPath, statePath("passed")));
+          item.iconPath = this.getStateIconUri("passed");
           return item;
         case "unrealizable":
           item = new TreeItem(element.realizabilitySource + ": conflicting set", TreeItemCollapsibleState.Collapsed);
-          item.iconPath = Uri.file(path.join(this._context.extensionPath, statePath("failed")));
+          item.iconPath = this.getStateIconUri("failed");
           item.contextValue = "hasDeadlock";
           return item;
       }
@@ -156,12 +161,12 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
     else if (element.realizability === "realizable") {
       
       item = new TreeItem(element.realizabilitySource, TreeItemCollapsibleState.None);
-      item.iconPath = Uri.file(path.join(this._context.extensionPath, statePath("passed")));
+      item.iconPath = this.getStateIconUri("passed");
       return item;
     }
     else {
       item = new TreeItem(element.realizabilitySource, TreeItemCollapsibleState.None);
-      item.iconPath = Uri.file(path.join(this._context.extensionPath, statePath("failed")));
+      item.iconPath = this.getStateIconUri("failed");
       item.contextValue = "hasDeadlock";
       return item;
     }
@@ -194,7 +199,7 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
       if (element.state == "failed" || element.state == "reachable") {
         item.contextValue = "hasTrace";
       }
-      item.iconPath = Uri.file(path.join(this._context.extensionPath, statePath(element.state)));
+      item.iconPath = this.getStateIconUri(element.state);
       return item;
     } else {
       // Item must be a container (IVC or MCS)
@@ -477,7 +482,7 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
         mainComponent.state = ["stopped"];
         console.log("Check has been cancelled for " + mainComponent + "(state:" + mainComponent.state + ")")
       } else {
-        window.showErrorMessage(reason.message);
+        window.showErrorMessage(JSON.stringify(reason));
         mainComponent.analyses = [];
         mainComponent.state = ["errored"];
       }
@@ -802,8 +807,8 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
   public async interpret(uri: string, main: string, json: string): Promise<void> {
     await this.sendKind2Request<string>("kind2/interpret", uri, main, json).then(async (interp: string) => {
       // TODO
-      // WebPanel.createOrShow(this._context.extensionPath);
-      // await WebPanel.currentPanel?.sendMessage({ uri: uri, main: main, json: interp, type: "interp" });
+      WebPanel.createOrShow(this._context.extensionUri);
+      await WebPanel.currentPanel?.sendMessage({ uri: uri, main: main, json: interp, type: "interp" });
     }).catch(reason => {
       window.showErrorMessage(reason.message);
     });
