@@ -142,10 +142,8 @@ export async function activate(context: vscode.ExtensionContext) {
     );
     return;
   }
-  vscode.window.showInformationMessage('starting Kind2 language client.');
   // In vscode-languageclient v8+, start() resolves when initialization is ready.
   await client.start();
-  vscode.window.showInformationMessage('Kind2 language client started.');
   client.onNotification("kind2/checkResultUpdate", (uri: string, name:string, values: string[]) => kind2.handleCheck(uri, name, values));
   client.onNotification("kind2/checkComplete", (uri: string, name:string, values: string[]) => kind2.checkComplete(uri, name));
 

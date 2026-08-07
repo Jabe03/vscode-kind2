@@ -393,7 +393,6 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
     // Do not cancel running checks here, since every incremental 
     // update would cancel the check early 
     // This is now a main file.
-    window.showInformationMessage("Updating components for file: " + uri);
     this._fileMap.set(uri, new Set<String>());
     const components: any[] = await this.sendKind2Request("kind2/getComponents", uri).then(values => {
       return (values as string[]).map(value => JSON.parse(value));
