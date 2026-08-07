@@ -222,8 +222,6 @@
           "order": 0,
           "description": "Abstract subnodes with a contract."
         },
-
-
         "kind2.ivc": {
           "scope": "machine-overridable",
           "type": "boolean",
@@ -238,7 +236,7 @@
           "order": 0,
           "description": "Explain results of checks by highlighting principal components."
         },
-         "kind2.ivc_all": {
+        "kind2.ivc_all": {
           "scope": "machine-overridable",
           "type": "boolean",
           "default": false,
@@ -277,15 +275,20 @@
               }
             ]
           },
-          "default": ["node_calls","contracts","equations","assertions","annotations"],
+          "default": [
+            "node_calls",
+            "contracts",
+            "equations",
+            "assertions",
+            "annotations"
+          ],
           "order": 0,
           "description": "Minimize only a specific category of elements"
         },
-
         "kind2.minimize_program": {
           "scope": "machine-overridable",
           "type": "string",
-          "enum":[
+          "enum": [
             "no",
             "valid_lustre",
             "concise"
@@ -294,8 +297,6 @@
           "order": 0,
           "description": "Minimize the source Lustre program according to the inductive validity core(s) computed"
         },
-
-
         "kind2.mcs": {
           "scope": "machine-overridable",
           "type": "boolean",
@@ -303,14 +304,13 @@
           "order": 0,
           "description": "Explain results of checks by highlighting principal components."
         },
-         "kind2.mcs_all": {
+        "kind2.mcs_all": {
           "scope": "machine-overridable",
           "type": "boolean",
           "default": false,
           "order": 0,
           "description": "Compute all the Minimal Inductive Validity Cores"
         },
-        
         "kind2.mcs_categories": {
           "scope": "machine-overridable",
           "type": "array",
@@ -335,15 +335,16 @@
               }
             ]
           },
-          "default": ["node_calls","contracts","equations","assertions","annotations"],
+          "default": [
+            "node_calls",
+            "contracts",
+            "equations",
+            "assertions",
+            "annotations"
+          ],
           "order": 0,
           "description": "Minimize only a specific category of elements"
         },
-
-
-
-
-        
         "kind2.certif.certif": {
           "scope": "machine-overridable",
           "type": "boolean",
@@ -635,7 +636,7 @@
         }
       }
     ],
-     "snippets": [
+    "snippets": [
       {
         "language": "lustre",
         "path": "./snippets/lustre.json"
@@ -650,10 +651,12 @@
     "esbuild-watch": "npm run esbuild-base -- --sourcemap --watch",
     "esbuild-web-watch": "npm run esbuild-web -- --sourcemap --watch",
     "web:run": "npm run esbuild-web && npx vscode-test-web --browser chromium --extensionDevelopmentPath=. --open-devtools .",
-    "web:run:headless": "npm run esbuild-web && npx vscode-test-web --browser chromium --extensionDevelopmentPath=. --headless ."
+    "web:run:headless": "npm run esbuild-web && npx vscode-test-web --browser chromium --extensionDevelopmentPath=. --headless /home/josh/Kind2/vscode-kind2/src/web/lustre-examples"
   },
   "dependencies": {
-    "vscode-languageclient": "^6.1.4"
+    "path-browserify": "^1.0.1",
+    "vscode-languageclient": "^8.1.0",
+    "vscode-ws-jsonrpc": "^3.5.0"
   },
   "devDependencies": {
     "@types/glob": "^7.2.0",
