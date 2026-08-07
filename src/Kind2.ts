@@ -4,11 +4,12 @@
  * Licensed under the MIT License. See LICENSE in the project root for license information.
  */
 
-import * as path from "path";
-import { CancellationToken, CancellationTokenSource, CodeLens, CodeLensProvider, DecorationOptions, Event, EventEmitter, ExtensionContext, Position, ProviderResult, Range, ShellExecution, Task, tasks, TaskScope, TextDocument, TextEditorDecorationType, TreeDataProvider, TreeItem, TreeItemCollapsibleState, TreeView, Uri, window, MarkdownString } from "vscode";
-import { LanguageClient } from "vscode-languageclient";
+import * as path from "path-browserify";
+import { CancellationToken, CancellationTokenSource, CodeLens, CodeLensProvider, DecorationOptions, Event, EventEmitter, ExtensionContext, Position, ProviderResult, Range, ShellExecution, Task, tasks, TaskScope, TextDocument, TextEditorDecorationType, TreeDataProvider, TreeItem, TreeItemCollapsibleState, TreeView, Uri, window, MarkdownString, workspace } from "vscode";
+import { BaseLanguageClient } from "vscode-languageclient";
 import { Analysis, Component, File, Property, State, statePath, TreeNode, stateColor, Container } from "./treeNode";
-import { WebPanel } from "./webviewPanel";
+// Web panel is not yet compatible with web version of Kind 2, so this import is commented out for now
+// import { WebPanel } from "./webviewPanel";
 
 type AnalysisType = "check" | "minimalCutSet" | "realizability"; 
 
@@ -20,7 +21,7 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
   private readonly _codeLensesChanged: EventEmitter<void>;
   private readonly _decorationTypeMap: Map<State, TextEditorDecorationType>;
 
-  constructor(private _context: ExtensionContext, private _client: LanguageClient) {
+  constructor(private _context: ExtensionContext, private _client: BaseLanguageClient) {
     this._fileMap = new Map<String, Set<String>>();
     this._files = [];
     this._runningChecks = new Map<Component, CancellationTokenSource>();
@@ -51,6 +52,12 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
       [ "mcs property",           window.createTextEditorDecorationType({ gutterIconPath: this._context.asAbsolutePath(statePath("mcs property")),                                                                                     backgroundColor: stateColor("mcs property") }) ],
       [ "mcs cut",                window.createTextEditorDecorationType({ gutterIconPath: this._context.asAbsolutePath(statePath("mcs cut")),                                                                                      backgroundColor: stateColor("mcs cut") }) ],
     ]);
+  }
+
+  // BaseLanguageClient's typings only expose single-params overloads, but
+  // our custom JSON-RPC methods use positional parameters on the Java side.
+  private sendKind2Request<R>(method: string, ...params: any[]): Promise<R> {
+    return (this._client as any).sendRequest(method, ...params) as Promise<R>;
   }
 
   onDidChangeCodeLenses?: Event<void> | undefined;
@@ -160,6 +167,7 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
     }
   }
   public getTreeItem(element: TreeNode): TreeItem | Thenable<TreeItem> {
+    console.log("Getting tree item for element " + " of type: " + element.constructor.name);
     let item: TreeItem;
     if (element instanceof File) {
       return this.makeFileTreeItem(element);
@@ -380,9 +388,13 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
     // Do not cancel running checks here, since every incremental 
     // update would cancel the check early 
     // This is now a main file.
+    window.showInformationMessage("Updating components for file: " + uri);
     this._fileMap.set(uri, new Set<String>());
-    const components: any[] = await this._client.sendRequest("kind2/getComponents", uri).then(values => {
+    const components: any[] = await this.sendKind2Request("kind2/getComponents", uri).then(values => {
       return (values as string[]).map(value => JSON.parse(value));
+    }).catch(reason => {
+      window.showErrorMessage(reason.message);
+      return [];
     });
     // Remove this file, if we need to replace its components.
     let mainFile = this._files.find(f => f.uri === uri);
@@ -458,7 +470,7 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
     let tokenSource = new CancellationTokenSource();
     mainComponent.hasRunningAnalysis = true;
     this._runningChecks.set(mainComponent, tokenSource);
-    await this._client.sendRequest(`kind2/${analysisType}`, [mainComponent.uri, mainComponent.name, mainComponent.kind], tokenSource.token).catch(reason => {
+    await this.sendKind2Request(`kind2/${analysisType}`, mainComponent.uri, mainComponent.name, mainComponent.kind, tokenSource.token).catch(reason => {
       if (reason.message.includes("cancelled")) {
         this._runningChecks.delete(mainComponent);
         mainComponent.analyses = [];
@@ -788,16 +800,17 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
   }
 
   public async interpret(uri: string, main: string, json: string): Promise<void> {
-    await this._client.sendRequest<string>("kind2/interpret", [uri, main, json]).then(async (interp: string) => {
-      WebPanel.createOrShow(this._context.extensionPath);
-      await WebPanel.currentPanel?.sendMessage({ uri: uri, main: main, json: interp, type: "interp" });
+    await this.sendKind2Request<string>("kind2/interpret", uri, main, json).then(async (interp: string) => {
+      // TODO
+      // WebPanel.createOrShow(this._context.extensionPath);
+      // await WebPanel.currentPanel?.sendMessage({ uri: uri, main: main, json: interp, type: "interp" });
     }).catch(reason => {
       window.showErrorMessage(reason.message);
     });
   }
 
   public async raw(component: Component): Promise<void> {
-    await this._client.sendRequest<string[]>("kind2/getKind2Cmd", [component.uri, component.name]).then(async (cmd: string[]) => {
+    await this.sendKind2Request<string[]>("kind2/getKind2Cmd", component.uri, component.name).then(async (cmd: string[]) => {
       cmd = cmd.map(o => o.replace("%20", " "));
       await tasks.executeTask(new Task({ type: "kind2" }, TaskScope.Workspace, component.name, "Kind 2", new ShellExecution(cmd[0], cmd.slice(1))));
     }).catch(reason => {
@@ -810,10 +823,10 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
   }
 
   public async counterExample(property: Property): Promise<void> {
-    await this._client.sendRequest<string>("kind2/counterExample", [property.parent.parent.uri, property.parent.parent.name,
-    property.parent.abstract, property.parent.concrete, property.name]).then((ce: string) => {
-      WebPanel.createOrShow(this._context.extensionPath);
-      WebPanel.currentPanel?.sendMessage({ uri: property.parent.parent.uri, main: property.parent.parent.name, json: ce, type: "cex" });
+    await this.sendKind2Request<string>("kind2/counterExample", property.parent.parent.uri, property.parent.parent.name,
+    property.parent.abstract, property.parent.concrete, property.name).then((ce: string) => {
+      // WebPanel.createOrShow(this._context.extensionPath);
+      // WebPanel.currentPanel?.sendMessage({ uri: property.parent.parent.uri, main: property.parent.parent.name, json: ce, type: "cex" });
     }).catch(reason => {
       window.showErrorMessage(reason.message);
     });
@@ -832,9 +845,9 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
     else if (analysis.realizabilitySource === "type") {
       context = "type"
     }
-    await this._client.sendRequest<string>("kind2/deadlock", [analysis.parent.uri, name, context]).then((dl: string) => {
-      WebPanel.createOrShow(this._context.extensionPath);
-      WebPanel.currentPanel?.sendMessage({ uri: analysis.parent.uri, main: analysis.parent.name, json: dl, type : "dl" });
+    await this.sendKind2Request<string>("kind2/deadlock", analysis.parent.uri, name, context).then((dl: string) => {
+      // WebPanel.createOrShow(this._context.extensionPath);
+      // WebPanel.currentPanel?.sendMessage({ uri: analysis.parent.uri, main: analysis.parent.name, json: dl, type : "dl" });
     }).catch(reason => {
       window.showErrorMessage(reason.message);
     });

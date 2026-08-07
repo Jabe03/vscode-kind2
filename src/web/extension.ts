@@ -1,49 +1,209 @@
 /*
- * Browser entry point for the Kind 2 extension.
- * This is intentionally minimal so the extension can load in vscode.dev/github.dev.
+ * Copyright (c) 2021, Board of Trustees of the University of Iowa All rights reserved.
+ *
+ * Licensed under the MIT License. See LICENSE in the project root for license information.
  */
 
+// import * as path from 'path';
 import * as vscode from 'vscode';
+import { workspace } from 'vscode';
+import {
+  BaseLanguageClient
+} from 'vscode-languageclient';
+import { Kind2 } from '../Kind2';
+import { Component, Property, TreeNode, Analysis, Container } from '../treeNode';
+// import { WebPanel } from '../webviewPanel';
+import { Kind2SettingsProvider, SelectorNode, SettingNode} from '../Kind2SettingsProvider';
+import {
+  createKind2LanguageClient
+} from './languageClient';
 
-const WEB_UNSUPPORTED_MESSAGE = 'Kind 2 web prototype: this command is not available yet (language server integration is desktop-only for now).';
+let client: BaseLanguageClient;
+let kind2: Kind2;
 
-function registerPlaceholderCommand(context: vscode.ExtensionContext, command: string): void {
-  context.subscriptions.push(
-    vscode.commands.registerCommand(command, async () => {
-      await vscode.window.showInformationMessage(WEB_UNSUPPORTED_MESSAGE);
-    })
-  );
-}
+export async function activate(context: vscode.ExtensionContext) {
+  let registerCommand = (command: string, callback: (...args: any[]) => any): void => {
+    context.subscriptions.push(vscode.commands.registerCommand(command, callback));
+  };
 
-export async function activate(context: vscode.ExtensionContext): Promise<void> {
-  await vscode.window.showInformationMessage('Kind 2 web prototype activated.');
+  try {
+    client = await createKind2LanguageClient(
+      'ws://localhost:3001/kind2'
+    );
+    vscode.window.showInformationMessage('Kind2 Language Client connected successfully.');
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : String(error);
 
-  const unimplemented_commands = [
-    'kind2/check',
-    'kind2/minimalCutSet',
-    'kind2/realizability',
-    'kind2/cancel',
-    'kind2/raw',
-    'kind2/counterExample',
-    'kind2/deadlock',
-    'kind2/interpret',
-    'kind2/showSource',
-    'kind2/enableModular',
-    'kind2/disableModular',
-    'kind2/enableCompositional',
-    'kind2/disableCompositional',
-    'kind2/modifySetting',
-    'kind2/activateIVC',
-    'kind2/activateMCS',
-    'kind2/reveal',
-    'angular-webview.start'
-  ];
-
-  for (const command of unimplemented_commands) {
-    registerPlaceholderCommand(context, command);
+    void vscode.window.showWarningMessage(
+      `Kind2 web prototype running without LSP: ${message}`
+    );
   }
+
+// Web panel is not yet compatible with web version of Kind 2, 
+// so this command is commented out for now
+//   registerCommand('angular-webview.start', () => {
+//     WebPanel.createOrShow(context.extensionPath);
+//   });
+
+  // The server is implemented in node
+//   let serverCmd = context.asAbsolutePath(
+//     path.join('kind2-language-server', 'bin', 'kind2-language-server')
+//   );
+
+  // If the extension is launched in debug mode then the debug server options are used
+  // Otherwise the run options are used
+//   let serverOptions: ServerOptions = {
+//     run: { command: serverCmd },
+//     debug: { command: serverCmd }
+//   };
+
+  // Options to control the language client
+//   let clientOptions: LanguageClientOptions = {
+//     // Register the server for plain text documents
+//     documentSelector: [{ scheme: 'file', language: 'lustre' }],
+//     synchronize: {
+//       // Notify the server about file changes to '.clientrc files contained in the workspace
+//       fileEvents: vscode.workspace.createFileSystemWatcher('**/.clientrc')
+//     }
+//   };
+
+  // Create the language client and start the client.
+  // TODO Implement Language Client for web version of Kind 2
+  // client = new LanguageClient(
+  //   'vscode-kind2',
+  //   'Kind 2',
+  //   serverOptions,
+  //   // connectToTCPServer(),
+  //   clientOptions
+  // );
+
+  kind2 = new Kind2(context, client);
+
+  vscode.window.onDidChangeActiveTextEditor(() => kind2.updateDecorations());
+
+  // Could potentially remove these commands, keeping because it takes away functionality that would have been previously present
+  // The settings menu now manages the environment settings with one command "kind2/modifySetting"
+  registerCommand('kind2/enableModular', () => {
+    workspace.getConfiguration("kind2").update("modular", true);
+  });
+  registerCommand('kind2/disableModular', () => {
+    workspace.getConfiguration("kind2").update("modular", false);
+  });
+  registerCommand('kind2/enableCompositional', () => {
+    workspace.getConfiguration("kind2.contracts").update("compositional", true);
+  });
+  registerCommand('kind2/disableCompositional', () => {
+    workspace.getConfiguration("kind2.contracts").update("compositional", false);
+  });
+  // end commands to potentially remove
+
+  registerCommand('kind2/modifySetting', (treeNode: SettingNode | SelectorNode) => {
+     Kind2SettingsProvider.updateSetting(treeNode);
+  });
+
+  registerCommand('kind2/activateIVC', (element : Container) => {
+    element.activateIVC();
+    kind2.changeTreeData(element.parent);
+    kind2.updateDecorations();
+  });
+  registerCommand('kind2/activateMCS', (element : Container) => {
+    element.activateMCS();
+    kind2.changeTreeData(element.parent);
+    kind2.updateDecorations();
+  });
+  
+  registerCommand('kind2/check', async (node: Component, options) => {
+    kind2.reveal(node, treeView);
+    await kind2.check(node);
+  });
+
+  registerCommand('kind2/minimalCutSet', async (node: Component, options) => {
+    kind2.reveal(node, treeView);
+    await kind2.minimalCutSet(node);
+  });
+
+  registerCommand('kind2/realizability', async (node: Component, options) => {
+    kind2.reveal(node, treeView);
+    await kind2.realizability(node);
+  });
+
+  registerCommand('kind2/cancel', async (node: Component) => {
+    kind2.cancel(node);
+  });
+
+  registerCommand('kind2/raw', async (component: Component) => await kind2.raw(component));
+
+  registerCommand('kind2/counterExample', async (property: Property) => {
+    await kind2.counterExample(property);
+  });
+
+  registerCommand('kind2/deadlock', async (analysis: Analysis) => {
+    await kind2.deadlock(analysis);
+  });
+
+  registerCommand('kind2/interpret', async (component: { uri: string, name: string }, json: string) => {
+    await kind2.interpret(component.uri, component.name, json);
+  });
+
+  registerCommand('kind2/showSource', async (node: TreeNode | Container) => await kind2.showSource(node));
+
+  const treeView = vscode.window.createTreeView("properties", { treeDataProvider: kind2, canSelectMany: false, showCollapseAll: true });
+  
+  let settingsViewProvider: Kind2SettingsProvider = new Kind2SettingsProvider(context);
+  const settingsView = vscode.window.createTreeView("kind2settings", { treeDataProvider: settingsViewProvider, canSelectMany: false, showCollapseAll: true });
+  
+  // registerCommand('kind2/reveal', async (node: TreeNode) => await kind2.reveal(node, treeView));
+
+
+  context.subscriptions.push(settingsView);
+  const documentSelector: vscode.DocumentFilter = { language: "lustre" };
+  context.subscriptions.push(vscode.languages.registerCodeLensProvider(documentSelector, kind2));
+
+  if (!client) {
+    vscode.window.showWarningMessage(
+      `Kind2 web prototype running without LSP: ${"Language client not initialized"}`
+    );
+    return;
+  }
+  vscode.window.showInformationMessage('starting Kind2 language client.');
+  // In vscode-languageclient v8+, start() resolves when initialization is ready.
+  await client.start();
+  vscode.window.showInformationMessage('Kind2 language client started.');
+  client.onNotification("kind2/checkResultUpdate", (uri: string, name:string, values: string[]) => kind2.handleCheck(uri, name, values));
+  client.onNotification("kind2/checkComplete", (uri: string, name:string, values: string[]) => kind2.checkComplete(uri, name));
+
+  client.onNotification("kind2/minimalCutSetResultUpdate", (uri: string, name:string, values: string[]) => kind2.handleMinimalCutSet(uri, name, values));
+  client.onNotification("kind2/minimalCutSetComplete", (uri: string, name:string, values: string[]) => kind2.minimalCutSetComplete(uri, name));
+  
+  client.onNotification("kind2/realizabilityResultUpdate", (uri: string, name:string, values: string[]) => kind2.handleRealizability(uri, name, values));
+  client.onNotification("kind2/realizabilityComplete", (uri: string, name:string, values: string[]) => kind2.realizabilityComplete(uri, name));
+
+  client.onNotification("kind2/updateComponents", (uri: string) => kind2.updateComponents(uri));
+  client.onRequest("kind2/getDefaultKind2Path", () => kind2.getDefaultKind2Path());
+  client.onRequest("kind2/getDefaultZ3Path", () => kind2.getDefaultZ3Path());
 }
 
-export function deactivate(): void {
-  // No resources to dispose in the web prototype.
+// function connectToTCPServer(): ServerOptions {
+//   let serverExec: ServerOptions = () => {
+
+//     return new Promise((resolve) => {
+//       net.createServer(socket => {
+//         let res: StreamInfo = { writer: socket, reader: socket };
+//         resolve(res);
+//       }).listen(23555, "localhost");
+//     });
+//   };
+//   return serverExec;
+// }
+
+export function deactivate(): Thenable<void> | undefined {
+//   WebPanel.currentPanel?.dispose();
+//   if (!client) {
+//     return undefined;
+//   }
+//   return client.stop();
+    return undefined;
 }
