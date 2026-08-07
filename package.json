@@ -72,6 +72,14 @@
           "order": 0,
           "description": "Path to the kind2 executable used by the extension."
         },
+        "kind2.web.lsp_hostname": {
+          "title": "Web LSP Hostname",
+          "scope": "machine-overridable",
+          "type": "string",
+          "default": "localhost",
+          "order": 0,
+          "description": "Hostname used by the web extension to connect to a remote Kind 2 LSP server."
+        },
         "kind2.smt.smt_solver": {
           "title": "Main SMT Solver",
           "scope": "machine-overridable",
@@ -651,7 +659,7 @@
     "esbuild-watch": "npm run esbuild-base -- --sourcemap --watch",
     "esbuild-web-watch": "npm run esbuild-web -- --sourcemap --watch",
     "web:run": "npm run esbuild-web && npx vscode-test-web --browser chromium --extensionDevelopmentPath=. --open-devtools .",
-    "web:run:headless": "npm run esbuild-web && npx vscode-test-web --browser chromium --extensionDevelopmentPath=. --headless /home/josh/Kind2/vscode-kind2/src/web/lustre-examples"
+    "web:run:headless": "npm run esbuild-web && npx vscode-test-web --browser chromium --extensionDevelopmentPath=. --headless --host 0.0.0.0 --port 3000 /home/josh/Kind2/vscode-kind2/src/web/lustre-examples"
   },
   "dependencies": {
     "path-browserify": "^1.0.1",

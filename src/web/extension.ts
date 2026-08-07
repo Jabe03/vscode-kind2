@@ -26,9 +26,15 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(vscode.commands.registerCommand(command, callback));
   };
 
+  const gatewayHostname = workspace
+    .getConfiguration('kind2.web')
+    .get<string>('lsp_hostname') ?? 'localhost';
+
+  const gatewayUrl = `ws://${gatewayHostname}:3001/kind2`;
+
   try {
     client = await createKind2LanguageClient(
-      'ws://localhost:3001/kind2'
+      gatewayUrl
     );
     vscode.window.showInformationMessage('Kind2 Language Client connected successfully.');
   } catch (error) {
