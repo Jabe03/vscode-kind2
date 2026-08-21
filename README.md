@@ -128,14 +128,17 @@ This starts the web app on port `3000` and loads the Kind 2 extension from the l
 
 ### 4) Build the Kind 2 language server
 
-The language server project has its own build system.
+The language server project has its own build system. 
 
 ```bash
 cd "$KIND2_LSP_DIR"
-./gradlew installDist
+./gradlew build
+./gradlew install
 ```
 
 ### 5) Start the WebSocket LSP gateway
+
+Note that in order to run the LSP in gateway mode, you must put the Kind 2 binary in the src/web/ directory in the LSP source code. The path of the Kidn 2 binary cannot be given by the web extension itself.
 
 The gateway is the JS wrapper that forwards LSP traffic between the browser and the Java language server.
 
