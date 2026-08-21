@@ -128,9 +128,7 @@ This starts the web app on port `3000` and loads the Kind 2 extension from the l
 
 ### 4) Build the Kind 2 language server
 
-The language server project has its own build system. Follow that repo's build steps there.
-
-Typical build pattern:
+The language server project has its own build system.
 
 ```bash
 cd "$KIND2_LSP_DIR"
@@ -243,7 +241,6 @@ and the LSP should be available at:
 wss://kind.cs.uiowa.edu/app/lsp
 ```
 
-This matches the actual Apache route.
 
 ## Main Features
 * Syntax highlighting for Lustre and Kind 2 constructs.
