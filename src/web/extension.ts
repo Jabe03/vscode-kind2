@@ -59,8 +59,7 @@ export async function activate(context: vscode.ExtensionContext) {
     );
   }
 
-// Web panel is not yet compatible with web version of Kind 2,
-// so this command is commented out for now
+
   registerCommand('angular-webview.start', () => {
     WebPanel.createOrShow(context.extensionUri);
   });
@@ -169,24 +168,10 @@ export async function activate(context: vscode.ExtensionContext) {
   client.onRequest("kind2/getDefaultZ3Path", () => kind2.getDefaultZ3Path());
 }
 
-// function connectToTCPServer(): ServerOptions {
-//   let serverExec: ServerOptions = () => {
-
-//     return new Promise((resolve) => {
-//       net.createServer(socket => {
-//         let res: StreamInfo = { writer: socket, reader: socket };
-//         resolve(res);
-//       }).listen(23555, "localhost");
-//     });
-//   };
-//   return serverExec;
-// }
-
 export function deactivate(): Thenable<void> | undefined {
-//   WebPanel.currentPanel?.dispose();
-//   if (!client) {
-//     return undefined;
-//   }
-//   return client.stop();
-    return undefined;
+    WebPanel.currentPanel?.dispose();
+    if (!client) {
+        return undefined;
+    }
+    return client.stop();
 }
