@@ -805,7 +805,6 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
 
   public async interpret(uri: string, main: string, json: string): Promise<void> {
     await this.sendKind2Request<string>("kind2/interpret", uri, main, json).then(async (interp: string) => {
-      // TODO
       WebPanel.createOrShow(this._context.extensionUri);
       await WebPanel.currentPanel?.sendMessage({ uri: uri, main: main, json: interp, type: "interp" });
     }).catch(reason => {
@@ -829,8 +828,8 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
   public async counterExample(property: Property): Promise<void> {
     await this.sendKind2Request<string>("kind2/counterExample", property.parent.parent.uri, property.parent.parent.name,
     property.parent.abstract, property.parent.concrete, property.name).then((ce: string) => {
-      // WebPanel.createOrShow(this._context.extensionPath);
-      // WebPanel.currentPanel?.sendMessage({ uri: property.parent.parent.uri, main: property.parent.parent.name, json: ce, type: "cex" });
+      WebPanel.createOrShow(this._context.extensionUri);
+      WebPanel.currentPanel?.sendMessage({ uri: property.parent.parent.uri, main: property.parent.parent.name, json: ce, type: "cex" });
     }).catch(reason => {
       window.showErrorMessage(reason.message);
     });
@@ -850,8 +849,8 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
       context = "type"
     }
     await this.sendKind2Request<string>("kind2/deadlock", analysis.parent.uri, name, context).then((dl: string) => {
-      // WebPanel.createOrShow(this._context.extensionPath);
-      // WebPanel.currentPanel?.sendMessage({ uri: analysis.parent.uri, main: analysis.parent.name, json: dl, type : "dl" });
+      WebPanel.createOrShow(this._context.extensionUri);
+      WebPanel.currentPanel?.sendMessage({ uri: analysis.parent.uri, main: analysis.parent.name, json: dl, type : "dl" });
     }).catch(reason => {
       window.showErrorMessage(reason.message);
     });
