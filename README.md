@@ -46,6 +46,205 @@ The extension supports modular and compositional analysis modes of Kind 2. Those
 You can also enable/disable modular and compositional analysis modes from Kind's view. Click on their icons to enable them.
 ![Analysis modes icons](images/icons.png)
 
+## Deploying the web workbench and LSP behind Apache SSL
+
+This project is split across three repositories:
+
+- VS Code: the web workbench
+- vscode-kind2: the custom VS Code extension
+- kind2-language-server: the Java language server and WebSocket gateway
+
+The deployment layout is:
+
+- `https://kind.cs.uiowa.edu/app/` → VS Code workbench
+- `https://kind.cs.uiowa.edu/app/lsp` → Kind 2 LSP WebSocket endpoint
+- `https://kind.cs.uiowa.edu/kind2_user_docs/...` → existing docs site
+
+### Prerequisites
+
+Install the required tools:
+
+```bash
+sudo apt update
+sudo apt install apache2
+```
+
+### 1) Clone the required repositories
+
+From a working directory such as `~/src`, clone the repos:
+
+```bash
+mkdir -p ~/src
+cd ~/src
+
+git clone https://github.com/microsoft/vscode.git
+git clone https://github.com/kind2-mc/vscode-kind2.git
+git clone https://github.com/kind2-mc/kind2-language-server.git
+```
+
+Set environment variables so the commands are portable:
+
+```bash
+export VSCODE_DIR="$HOME/src/vscode"
+export KIND2_EXT_DIR="$HOME/src/vscode-kind2"
+export KIND2_LSP_DIR="$HOME/src/kind2-language-server"
+```
+
+### 2) Build the vscode-kind2 extension
+
+From the extension repo:
+
+```bash
+cd "$KIND2_EXT_DIR"
+npm ci
+npm run esbuild-web
+```
+
+This compiles the web extension used by the VS Code web workbench.
+
+### 3) Build the VS Code repo
+
+Install dependencies:
+
+```bash
+cd "$VSCODE_DIR"
+npm ci
+```
+
+When you want to launch the web app, use the launch command:
+
+```bash
+"$VSCODE_DIR/scripts/code-web.sh" \
+  "$KIND2_EXT_DIR/src/web/lustre-examples" \
+  --host 127.0.0.1 \
+  --port 3000 \
+  --browserType none \
+  --extensionDevelopmentPath "$KIND2_EXT_DIR"
+```
+
+This starts the web app on port `3000` and loads the Kind 2 extension from the local clone.
+
+
+
+### 4) Build the Kind 2 language server
+
+The language server project has its own build system. Follow that repo's build steps there.
+
+Typical build pattern:
+
+```bash
+cd "$KIND2_LSP_DIR"
+./gradlew installDist
+```
+
+### 5) Start the WebSocket LSP gateway
+
+The gateway is the JS wrapper that forwards LSP traffic between the browser and the Java language server.
+
+Start it from the language-server repo:
+
+```bash
+cd "$KIND2_LSP_DIR/src/web"
+node kind2-gateway.cjs
+```
+
+This service listens on:
+
+```text
+ws://localhost:3001/lsp
+```
+
+### 6) Configure Apache SSL
+
+Create a site file such as `/etc/apache2/sites-available/vscode-web.conf` with the following contents:
+
+```apache
+<VirtualHost *:443>
+    ServerName kind.cs.uiowa.edu
+
+    SSLEngine on
+    SSLCertificateFile {PATH_TO_CERTIFICATE}.pem
+    SSLCertificateKeyFile {PATH_TO_PRIVATE_KEY}.pem
+
+    ProxyPreserveHost On
+    RequestHeader set X-Forwarded-Proto "https"
+
+    RewriteEngine On
+
+    RewriteCond %{REQUEST_URI} =/app
+    RewriteRule ^ http://%{HTTP_HOST}/app/ [R=302,L,NE]
+
+    # docs site: Tomcat
+    ProxyPass /kind2_user_docs http://127.0.0.1:8080/kind2_user_docs
+    ProxyPassReverse /kind2_user_docs http://127.0.0.1:8080/kind2_user_docs
+
+    # Route /app/lsp to the LSP backend.
+    RewriteCond %{HTTP:Upgrade} =websocket [NC]
+    RewriteRule ^/app/lsp(?:/.*)?$ ws://127.0.0.1:3001/lsp [P,L]
+
+    RewriteRule ^/app/lsp(?:/.*)?$ http://127.0.0.1:3001/lsp [P,L]
+
+    # code-web.sh generates root-relative /static/... resource URLs.
+    RewriteRule ^/static(?:/(.*))?$ http://127.0.0.1:3000/static/$1 [P,L,NE]
+
+    # Route /app/ to the VS Code development server.
+    RewriteCond %{HTTP:Upgrade} =websocket [NC]
+    RewriteRule ^/app/(.*)$ ws://127.0.0.1:3000/$1 [P,L,NE]
+
+    RewriteRule ^/app/(.*)$ http://127.0.0.1:3000/$1 [P,L,NE]
+
+    ProxyPassReverse /app/lsp http://127.0.0.1:3001/lsp
+    ProxyPassReverse /app/ http://127.0.0.1:3000/
+    ProxyPassReverse /static/ http://127.0.0.1:3000/static/
+
+    # fallback to Tomcat for everything else
+    ProxyPass / http://127.0.0.1:8080/
+    ProxyPassReverse / http://127.0.0.1:8080/
+</VirtualHost>
+```
+
+Enable the site and reload Apache:
+
+```bash
+sudo a2ensite vscode-web.conf
+sudo apache2ctl configtest
+sudo systemctl reload apache2
+```
+
+### 7) Start the web app
+
+Start the LSP gateway first:
+
+```bash
+cd "$KIND2_LSP_DIR/src/web"
+node kind2-gateway.cjs
+```
+
+Then start the VS Code web app:
+
+```bash
+"$VSCODE_DIR/scripts/code-web.sh" \
+  "$KIND2_EXT_DIR/src/web/lustre-examples" \
+  --host 127.0.0.1 \
+  --port 3000 \
+  --browserType none \
+  --extensionDevelopmentPath "$KIND2_EXT_DIR"
+```
+
+The site should now be available at:
+
+```text
+https://kind.cs.uiowa.edu/app/
+```
+
+and the LSP should be available at:
+
+```text
+wss://kind.cs.uiowa.edu/app/lsp
+```
+
+This matches the actual Apache route.
+
 ## Main Features
 * Syntax highlighting for Lustre and Kind 2 constructs.
 * Go-to-definition for top level declarations.
