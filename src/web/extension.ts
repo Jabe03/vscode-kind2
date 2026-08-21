@@ -21,21 +21,32 @@ import {
 let client: BaseLanguageClient;
 let kind2: Kind2;
 
+function getDefaultLspUrl(extensionUri: vscode.Uri): string {
+  const wsScheme = extensionUri.scheme === 'https' ? 'wss' : 'ws';
+  const hostWithOptionalPort = extensionUri.authority;
+  const hostOnly = hostWithOptionalPort.split(':')[0];
+
+  if (hostOnly.length > 0) {
+    return `${wsScheme}://${hostOnly}/app/lsp`;
+  }
+
+  return 'ws://localhost:3001/lsp';
+}
+
 export async function activate(context: vscode.ExtensionContext) {
   let registerCommand = (command: string, callback: (...args: any[]) => any): void => {
     context.subscriptions.push(vscode.commands.registerCommand(command, callback));
   };
 
-  const gatewayHostname = workspace
-    .getConfiguration('kind2.web')
-    .get<string>('lsp_hostname') ?? 'localhost';
-
-  const gatewayUrl = `ws://${gatewayHostname}:3001/kind2`;
+  const webConfiguration = workspace.getConfiguration('kind2.web');
+  const configuredGatewayUrl =
+    webConfiguration.get<string>('lsp_url')?.trim() ?? '';
+  const gatewayUrl = configuredGatewayUrl.length > 0
+    ? configuredGatewayUrl
+    : getDefaultLspUrl(context.extensionUri);
 
   try {
-    client = await createKind2LanguageClient(
-      gatewayUrl
-    );
+    client = await createKind2LanguageClient(gatewayUrl);
     vscode.window.showInformationMessage('Kind2 Language Client connected successfully.');
   } catch (error) {
     const message =
@@ -44,11 +55,11 @@ export async function activate(context: vscode.ExtensionContext) {
         : String(error);
 
     void vscode.window.showWarningMessage(
-      `Kind2 web prototype running without LSP: ${message}`
+      `Kind2 web prototype running without LSP: ${message}. Attempted: ${gatewayUrl}.`
     );
   }
 
-// Web panel is not yet compatible with web version of Kind 2, 
+// Web panel is not yet compatible with web version of Kind 2,
 // so this command is commented out for now
   registerCommand('angular-webview.start', () => {
     WebPanel.createOrShow(context.extensionUri);
@@ -88,7 +99,7 @@ export async function activate(context: vscode.ExtensionContext) {
     kind2.changeTreeData(element.parent);
     kind2.updateDecorations();
   });
-  
+
   registerCommand('kind2/check', async (node: Component, options) => {
     kind2.reveal(node, treeView);
     await kind2.check(node);
@@ -125,10 +136,10 @@ export async function activate(context: vscode.ExtensionContext) {
   registerCommand('kind2/showSource', async (node: TreeNode | Container) => await kind2.showSource(node));
 
   const treeView = vscode.window.createTreeView("properties", { treeDataProvider: kind2, canSelectMany: false, showCollapseAll: true });
-  
+
   let settingsViewProvider: Kind2SettingsProvider = new Kind2SettingsProvider(context);
   const settingsView = vscode.window.createTreeView("kind2settings", { treeDataProvider: settingsViewProvider, canSelectMany: false, showCollapseAll: true });
-  
+
   // registerCommand('kind2/reveal', async (node: TreeNode) => await kind2.reveal(node, treeView));
 
 
@@ -149,7 +160,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
   client.onNotification("kind2/minimalCutSetResultUpdate", (uri: string, name:string, values: string[]) => kind2.handleMinimalCutSet(uri, name, values));
   client.onNotification("kind2/minimalCutSetComplete", (uri: string, name:string, values: string[]) => kind2.minimalCutSetComplete(uri, name));
-  
+
   client.onNotification("kind2/realizabilityResultUpdate", (uri: string, name:string, values: string[]) => kind2.handleRealizability(uri, name, values));
   client.onNotification("kind2/realizabilityComplete", (uri: string, name:string, values: string[]) => kind2.realizabilityComplete(uri, name));
 
