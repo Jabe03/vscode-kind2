@@ -82,7 +82,7 @@ git clone https://github.com/kind2-mc/vscode-kind2.git
 git clone https://github.com/kind2-mc/kind2-language-server.git
 ```
 
-Set environment variables so the commands are portable:
+Set environment variables so the commands are portable. Set the variables to the actual location of each repository:
 
 ```bash
 export VSCODE_DIR="$HOME/src/vscode"
