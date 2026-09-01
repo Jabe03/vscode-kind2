@@ -46,7 +46,7 @@ The extension supports modular and compositional analysis modes of Kind 2. Those
 You can also enable/disable modular and compositional analysis modes from Kind's view. Click on their icons to enable them.
 ![Analysis modes icons](images/icons.png)
 
-## Deploying the web workbench and LSP behind Apache SSL
+## Deploying the web workbench and LSP behind nginx
 
 This project is split across three repositories:
 
@@ -56,22 +56,22 @@ This project is split across three repositories:
 
 The deployment layout is:
 
-- `https://kind.cs.uiowa.edu/app/` → VS Code workbench
-- `https://kind.cs.uiowa.edu/app/lsp` → Kind 2 LSP WebSocket endpoint
-- `https://kind.cs.uiowa.edu/kind2_user_docs/...` → existing docs site
+- `https://kind.cs.uiowa.edu/app/` -> VS Code workbench
+- `https://kind.cs.uiowa.edu/app/lsp` -> Kind 2 LSP WebSocket endpoint
+- `https://kind.cs.uiowa.edu/kind2_user_docs/...` -> existing docs site
 
 ### Prerequisites
 
-Install the required tools:
+Install required tools:
 
 ```bash
 sudo apt update
-sudo apt install apache2
+sudo apt install nginx
 ```
 
-### 1) Clone the required repositories
+### 1) Clone required repositories
 
-From a working directory such as `~/src`, clone the repos:
+From a working directory such as `~/src`:
 
 ```bash
 mkdir -p ~/src
@@ -155,61 +155,79 @@ This service listens on:
 ws://localhost:3001/lsp
 ```
 
-### 6) Configure Apache SSL
+### 6) Configure nginx SSL
 
-Create a site file such as `/etc/apache2/sites-available/vscode-web.conf` with the following contents:
+Create a site file such as `/etc/nginx/sites-available/kind.cs.uiowa.edu` with the following contents. Remember to provide the paths to SSL certification files. For testing locally, replace `listen 443 ssl` with `listen 80`, add `localhost` or whichever host you want your server to listen to, and delete the two SSL path lines:
 
-```apache
-<VirtualHost *:443>
-    ServerName kind.cs.uiowa.edu
+```nginx
+map $http_upgrade $connection_upgrade {
+  default upgrade;
+  ''      close;
+}
 
-    SSLEngine on
-    SSLCertificateFile {PATH_TO_CERTIFICATE}.pem
-    SSLCertificateKeyFile {PATH_TO_PRIVATE_KEY}.pem
+server {
+  listen 443 ssl;
+  server_name kind.cs.uiowa.edu;
 
-    ProxyPreserveHost On
-    RequestHeader set X-Forwarded-Proto "https"
+  ssl_certificate {PATH_TO_CERTIFICATE}.pem;
+  ssl_certificate_key {PATH_TO_PRIVATE_KEY}.pem;
 
-    RewriteEngine On
+  # Equivalent to ProxyPreserveHost On
+  proxy_set_header Host $host;
+  proxy_set_header X-Forwarded-Host $host;
+  proxy_set_header X-Forwarded-Proto https;
+  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+  proxy_set_header X-Real-IP $remote_addr;
 
-    RewriteCond %{REQUEST_URI} =/app
-    RewriteRule ^ http://%{HTTP_HOST}/app/ [R=302,L,NE]
+  # Equivalent to RewriteCond %{REQUEST_URI} =/app + redirect to /app/
+  location = /app {
+    return 302 https://$host/app/;
+  }
 
-    # docs site: Tomcat
-    ProxyPass /kind2_user_docs http://127.0.0.1:8080/kind2_user_docs
-    ProxyPassReverse /kind2_user_docs http://127.0.0.1:8080/kind2_user_docs
+  # docs app: Tomcat
+  location /kind2_user_docs {
+    proxy_pass http://127.0.0.1:8080;
+  }
 
-    # Route /app/lsp to the LSP backend.
-    RewriteCond %{HTTP:Upgrade} =websocket [NC]
-    RewriteRule ^/app/lsp(?:/.*)?$ ws://127.0.0.1:3001/lsp [P,L]
+  # Route /app/lsp to the LSP backend.
+  # This preserves Apache behavior that normalizes any /app/lsp... to /lsp
+  location ~ ^/app/lsp(?:/.*)?$ {
+    rewrite ^ /lsp break;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $connection_upgrade;
+    proxy_pass http://127.0.0.1:3001;
+  }
 
-    RewriteRule ^/app/lsp(?:/.*)?$ http://127.0.0.1:3001/lsp [P,L]
+  # code-web.sh generates root-relative /static/... URLs
+  location /static/ {
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $connection_upgrade;
+    proxy_pass http://127.0.0.1:3000/static/;
+  }
 
-    # code-web.sh generates root-relative /static/... resource URLs.
-    RewriteRule ^/static(?:/(.*))?$ http://127.0.0.1:3000/static/$1 [P,L,NE]
+  # Route /app/ to VS Code development server
+  location /app/ {
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $connection_upgrade;
+    proxy_pass http://127.0.0.1:3000/;
+  }
 
-    # Route /app/ to the VS Code development server.
-    RewriteCond %{HTTP:Upgrade} =websocket [NC]
-    RewriteRule ^/app/(.*)$ ws://127.0.0.1:3000/$1 [P,L,NE]
-
-    RewriteRule ^/app/(.*)$ http://127.0.0.1:3000/$1 [P,L,NE]
-
-    ProxyPassReverse /app/lsp http://127.0.0.1:3001/lsp
-    ProxyPassReverse /app/ http://127.0.0.1:3000/
-    ProxyPassReverse /static/ http://127.0.0.1:3000/static/
-
-    # fallback to Tomcat for everything else
-    ProxyPass / http://127.0.0.1:8080/
-    ProxyPassReverse / http://127.0.0.1:8080/
-</VirtualHost>
+  # fallback to Tomcat for everything else
+  location / {
+    proxy_pass http://127.0.0.1:8080;
+  }
+}
 ```
 
-Enable the site and reload Apache:
+Enable the site and reload nginx:
 
 ```bash
-sudo a2ensite vscode-web.conf
-sudo apache2ctl configtest
-sudo systemctl reload apache2
+sudo ln -s /etc/nginx/sites-available/kind.cs.uiowa.edu /etc/nginx/sites-enabled/kind.cs.uiowa.edu
+sudo nginx -t
+sudo systemctl reload nginx
 ```
 
 ### 7) Start the web app
