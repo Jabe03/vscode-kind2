@@ -30,16 +30,22 @@ export async function activate(context: vscode.ExtensionContext) {
     WebPanel.createOrShow(context.extensionPath);
   });
 
-  // The server is implemented in node
-  let serverCmd = context.asAbsolutePath(
-    path.join('kind2-language-server', 'bin', 'kind2-language-server')
-  );
+  // Spawn java directly instead of the generated bin/ launcher scripts: on Windows,
+  // running the .bat wrapper through a shell corrupts the LSP's stdio pipe.
+  let javaExe = process.env.JAVA_HOME
+    ? path.join(process.env.JAVA_HOME, 'bin', process.platform === 'win32' ? 'java.exe' : 'java')
+    : 'java';
+  let classpath = context.asAbsolutePath(path.join('kind2-language-server', 'lib', '*'));
+  let serverExecutable = {
+    command: javaExe,
+    args: ['-cp', classpath, 'edu.uiowa.kind2.lsp.Main']
+  };
 
   // If the extension is launched in debug mode then the debug server options are used
   // Otherwise the run options are used
   let serverOptions: ServerOptions = {
-    run: { command: serverCmd },
-    debug: { command: serverCmd }
+    run: serverExecutable,
+    debug: serverExecutable
   };
 
   // Options to control the language client

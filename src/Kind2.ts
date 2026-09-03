@@ -57,7 +57,10 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
 
   provideCodeLenses(document: TextDocument, _token: CancellationToken): ProviderResult<CodeLens[]> {
     let codeLenses: CodeLens[] = [];
-    let file = this._files.find(file => file.uri === document.uri.toString());
+    // Compare fsPath, not raw URI strings: on Windows the server and VS Code can
+    // disagree on drive-letter case/colon encoding for otherwise identical URIs.
+    let normalize = (fsPath: string) => process.platform === 'win32' ? fsPath.toLowerCase() : fsPath;
+    let file = this._files.find(file => normalize(Uri.parse(file.uri).fsPath) === normalize(document.uri.fsPath));
     if (file) {
       for (const component of file.components) {
         let range = new Range(component.line, 0, component.line, 0);
