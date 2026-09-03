@@ -4,6 +4,7 @@
  * Licensed under the MIT License. See LICENSE in the project root for license information.
  */
 
+import * as fs from 'fs';
 import * as net from 'net';
 import * as path from 'path';
 import * as vscode from 'vscode';
@@ -32,9 +33,16 @@ export async function activate(context: vscode.ExtensionContext) {
 
   // Spawn java directly instead of the generated bin/ launcher scripts: on Windows,
   // running the .bat wrapper through a shell corrupts the LSP's stdio pipe.
-  let javaExe = process.env.JAVA_HOME
-    ? path.join(process.env.JAVA_HOME, 'bin', process.platform === 'win32' ? 'java.exe' : 'java')
-    : 'java';
+  let javaHome = process.env.JAVA_HOME;
+  let javaExecutable = process.platform === 'win32' ? 'java.exe' : 'java';
+  let javaExe = javaHome
+    ? [
+        path.join(javaHome, javaExecutable),
+        path.join(javaHome, 'bin', javaExecutable),
+        path.join(path.dirname(javaHome), javaExecutable),
+        path.join(path.dirname(javaHome), 'bin', javaExecutable)
+      ].find(fs.existsSync) ?? javaExecutable
+    : javaExecutable;
   let classpath = context.asAbsolutePath(path.join('kind2-language-server', 'lib', '*'));
   let serverExecutable = {
     command: javaExe,
