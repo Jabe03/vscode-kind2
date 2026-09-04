@@ -430,7 +430,18 @@ export class Kind2 implements TreeDataProvider<TreeNode>, CodeLensProvider {
     let tokenSource = new CancellationTokenSource();
     mainComponent.hasRunningAnalysis = true;
     this._runningChecks.set(mainComponent, tokenSource);
-    await this._client.sendRequest(`kind2/${analysisType}`, [mainComponent.uri, mainComponent.name, mainComponent.kind], tokenSource.token).catch(reason => {
+    await this._client.sendRequest<string[]>(`kind2/${analysisType}`, [mainComponent.uri, mainComponent.name, mainComponent.kind], tokenSource.token).then(async values => {
+      if (analysisType === "check") {
+        this.handleCheck(mainComponent.uri, mainComponent.name, values);
+        this.checkComplete(mainComponent.uri, mainComponent.name);
+      } else if (analysisType === "minimalCutSet") {
+        this.handleMinimalCutSet(mainComponent.uri, mainComponent.name, values);
+        this.minimalCutSetComplete(mainComponent.uri, mainComponent.name);
+      } else {
+        this.handleRealizability(mainComponent.uri, mainComponent.name, values);
+        this.realizabilityComplete(mainComponent.uri, mainComponent.name);
+      }
+    }).catch(reason => {
       if (reason.message.includes("cancelled")) {
         this._runningChecks.delete(mainComponent);
         mainComponent.analyses = [];
